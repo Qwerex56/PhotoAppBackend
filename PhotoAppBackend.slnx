@@ -1,3 +1,29 @@
 <Solution>
-  <Project Path="PhotoAppBackend/PhotoAppBackend.csproj" />
+  <Folder Name="/Solution Items/">
+    <File Path="compose.yaml" />
+    <File Path=".dockerignore" />
+    <File Path=".gitignore" />
+  </Folder>
+
+  <!-- Shared Libraries -->
+  <Project Path="src/Shared/Shared.Contracts/Shared.Contracts.csproj" />
+  <Project Path="src/Shared/Shared.Results/Shared.Results.csproj" />
+  <Project Path="src/Shared/Shared.Constants/Shared.Constants.csproj" />
+
+  <!-- Auth Service -->
+  <Folder Name="AuthService">
+    <Project Path="src/Services/AuthService/AuthService.Domain/AuthService.Domain.csproj" />
+    <Project Path="src/Services/AuthService/AuthService.Application/AuthService.Application.csproj" />
+    <Project Path="src/Services/AuthService/AuthService.Infrastructure/AuthService.Infrastructure.csproj" />
+    <Project Path="src/Services/AuthService/AuthService.API/AuthService.API.csproj" />
+  </Folder>
+
+  <!-- User Management Service -->
+  <Folder Name="UserManagementService">
+    <Project Path="src/Services/UserManagementService/UserManagementService.Domain/UserManagementService.Domain.csproj" />
+    <Project Path="src/Services/UserManagementService/UserManagementService.Application/UserManagementService.Application.csproj" />
+    <Project Path="src/Services/UserManagementService/UserManagementService.Infrastructure/UserManagementService.Infrastructure.csproj" />
+    <Project Path="src/Services/UserManagementService/UserManagementService.API/UserManagementService.API.csproj" />
+  </Folder>
+
 </Solution>
