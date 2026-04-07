@@ -9,7 +9,7 @@ using Domain.Entities;
 /// </summary>
 public class UserManagementDbContext : DbContext
 {
-    public const string DefaultSchema = "user_management";
+    private const string DefaultSchema = "user_management";
 
     public UserManagementDbContext(DbContextOptions<UserManagementDbContext> options)
         : base(options)
@@ -31,36 +31,36 @@ public class UserManagementDbContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(UserManagementDbContext).Assembly);
 
         // Seed default roles
-        SeedDefaultRoles(modelBuilder);
+        // SeedDefaultRoles(modelBuilder);
     }
 
-    private static void SeedDefaultRoles(ModelBuilder modelBuilder)
-    {
-        var adminRoleId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-        var userRoleId = Guid.Parse("00000000-0000-0000-0000-000000000002");
-        var moderatorRoleId = Guid.Parse("00000000-0000-0000-0000-000000000003");
-
-        modelBuilder.Entity<Role>().HasData(
-            new Role("Admin", "Administrator with full system access", true) 
-            { 
-                Id = adminRoleId, 
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            },
-            new Role("User", "Regular user with standard permissions", true) 
-            { 
-                Id = userRoleId,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            },
-            new Role("Moderator", "Moderator with content management permissions", true) 
-            { 
-                Id = moderatorRoleId,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            }
-        );
-    }
+    // private static void SeedDefaultRoles(ModelBuilder modelBuilder)
+    // {
+    //     var adminRoleId = Guid.Parse("00000000-0000-0000-0000-000000000001");
+    //     var userRoleId = Guid.Parse("00000000-0000-0000-0000-000000000002");
+    //     var moderatorRoleId = Guid.Parse("00000000-0000-0000-0000-000000000003");
+    //
+    //     modelBuilder.Entity<Role>().HasData(
+    //         new Role("Admin", "Administrator with full system access", true) 
+    //         { 
+    //             Id = adminRoleId, 
+    //             CreatedAt = DateTime.UtcNow,
+    //             UpdatedAt = DateTime.UtcNow
+    //         },
+    //         new Role("User", "Regular user with standard permissions", true) 
+    //         { 
+    //             Id = userRoleId,
+    //             CreatedAt = DateTime.UtcNow,
+    //             UpdatedAt = DateTime.UtcNow
+    //         },
+    //         new Role("Moderator", "Moderator with content management permissions", true) 
+    //         { 
+    //             Id = moderatorRoleId,
+    //             CreatedAt = DateTime.UtcNow,
+    //             UpdatedAt = DateTime.UtcNow
+    //         }
+    //     );
+    // }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

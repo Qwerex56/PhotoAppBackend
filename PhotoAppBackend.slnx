@@ -11,7 +11,7 @@
   <Project Path="src/Shared/Shared.Constants/Shared.Constants.csproj" />
 
   <!-- Auth Service -->
-  <Folder Name="AuthService">
+  <Folder Name="/src/Services/AuthService/">
     <Project Path="src/Services/AuthService/AuthService.Domain/AuthService.Domain.csproj" />
     <Project Path="src/Services/AuthService/AuthService.Application/AuthService.Application.csproj" />
     <Project Path="src/Services/AuthService/AuthService.Infrastructure/AuthService.Infrastructure.csproj" />
@@ -19,7 +19,7 @@
   </Folder>
 
   <!-- User Management Service -->
-  <Folder Name="UserManagementService">
+  <Folder Name="/src/Services/UserManagementService/">
     <Project Path="src/Services/UserManagementService/UserManagementService.Domain/UserManagementService.Domain.csproj" />
     <Project Path="src/Services/UserManagementService/UserManagementService.Application/UserManagementService.Application.csproj" />
     <Project Path="src/Services/UserManagementService/UserManagementService.Infrastructure/UserManagementService.Infrastructure.csproj" />

@@ -8,8 +8,12 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="...\..\Shared\Shared.Constants\Shared.Constants.csproj" />
-        <ProjectReference Include="...\..\Shared\Shared.Results\Shared.Results.csproj" />
+        <ProjectReference Include="..\..\..\Shared\Shared.Constants\Shared.Constants.csproj" />
+        <ProjectReference Include="..\..\..\Shared\Shared.Results\Shared.Results.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="FluentValidation" Version="12.1.1" />
     </ItemGroup>
 
 </Project>

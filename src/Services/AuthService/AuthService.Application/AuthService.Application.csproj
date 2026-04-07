@@ -8,8 +8,15 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="...\..\Shared\Shared.Constants\Shared.Constants.csproj" />
-        <ProjectReference Include="...\..\Shared\Shared.Results\Shared.Results.csproj" />
+        <ProjectReference Include="..\..\..\Shared\Shared.Constants\Shared.Constants.csproj" />
+        <ProjectReference Include="..\..\..\Shared\Shared.Contracts\Shared.Contracts.csproj" />
+        <ProjectReference Include="..\..\..\Shared\Shared.Results\Shared.Results.csproj" />
+        <ProjectReference Include="..\AuthService.Domain\AuthService.Domain.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="FluentValidation" Version="12.1.1" />
+      <PackageReference Include="MediatR" Version="14.1.0" />
     </ItemGroup>
 
 </Project>

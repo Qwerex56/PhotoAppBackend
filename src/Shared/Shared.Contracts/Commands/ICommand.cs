@@ -1,10 +1,12 @@
+using MediatR;
+
 namespace Shared.Contracts.Commands;
 
 /// <summary>
 /// Base interface for commands processed via MediatR.
 /// Commands represent intent to change state.
 /// </summary>
-public interface ICommand
+public interface ICommand : IRequest
 {
     /// <summary>
     /// Unique correlation ID for tracking a command execution across services.
@@ -15,7 +17,7 @@ public interface ICommand
 /// <summary>
 /// Base interface for commands that return a result.
 /// </summary>
-public interface ICommand<out TResponse> : ICommand
+public interface ICommand<out TResponse> : IRequest<TResponse>
 {
 }
 
