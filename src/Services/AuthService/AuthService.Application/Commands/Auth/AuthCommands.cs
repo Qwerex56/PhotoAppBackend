@@ -105,6 +105,7 @@ public class ResetPasswordCommand : Command<Result>
 public class LogoutCommand : Command<Result>
 {
     public Guid UserId { get; init; }
+    public string? RefreshToken { get; init; }
     public Guid? RefreshTokenId { get; init; } // If null, revoke all tokens
     public string? Reason { get; init; }
 }

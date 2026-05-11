@@ -1,0 +1,1480 @@
+{
+  "info": {
+    "_postman_id": "3b2f0d47-58ed-4cbe-8d8f-6a9b1b0e2f12",
+    "name": "PhotoApp Backend Demo",
+    "description": "Postman collection for the local PhotoApp backend. It uses bearer tokens captured from the AuthService login and refresh responses, so it does not depend on browser cookies shared across Swagger tabs or service instances.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Registration, email verification, login, refresh, and optional password recovery flows.",
+      "item": [
+        {
+          "name": "Primary Account",
+          "description": "Main demo identity used for profile and media operations.",
+          "item": [
+            {
+              "name": "Register Primary User",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const stamp = Date.now();",
+                      "const primaryEmail = pm.environment.get('primary_email');",
+                      "const primaryPassword = pm.environment.get('primary_password');",
+                      "const primaryFullName = pm.environment.get('primary_full_name');",
+                      "const primaryBio = pm.environment.get('primary_bio');",
+                      "const primaryAvatarUrl = pm.environment.get('primary_avatar_url');",
+                      "pm.environment.unset('primary_user_id');",
+                      "pm.environment.unset('primary_access_token');",
+                      "pm.environment.unset('primary_refresh_token');",
+                      "pm.environment.unset('primary_verification_token');",
+                      "pm.environment.unset('primary_reset_token');",
+                      "pm.environment.unset('primary_album_id');",
+                      "pm.environment.unset('archive_album_id');",
+                      "pm.environment.unset('primary_media_id');",
+                      "pm.environment.set('primary_email', primaryEmail || `primary.${stamp}@demo.local`);",
+                      "pm.environment.set('primary_password', primaryPassword || 'PhotoApp!Demo2026');",
+                      "pm.environment.set('primary_full_name', primaryFullName || `Primary Demo User ${stamp}`);",
+                      "pm.environment.set('primary_bio', primaryBio || 'Primary account created through Postman');",
+                      "pm.environment.set('primary_avatar_url', primaryAvatarUrl || 'https://example.com/avatars/primary.png');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('primary_user_id', body.userId);",
+                      "pm.environment.set('primary_email', body.email);",
+                      "pm.environment.set('primary_registration_message', body.message);",
+                      "console.info('Copy the verification token printed by AuthService.API into primary_verification_token before running Verify Primary Email.');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{primary_email}}\",\n  \"password\": \"{{primary_password}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{auth_base_url}}/api/auth/register"
+                },
+                "description": "Creates a unique demo user. The verification token is printed by AuthService.API to the server console."
+              },
+              "response": []
+            },
+            {
+              "name": "Verify Primary Email",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('primary_verification_token')) {",
+                      "  console.warn('Paste the verification token from AuthService.API into primary_verification_token before running this request.');",
+                      "}"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 204', function () { pm.response.to.have.status(204); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userId\": \"{{primary_user_id}}\",\n  \"email\": \"{{primary_email}}\",\n  \"token\": \"{{primary_verification_token}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{auth_base_url}}/api/auth/verify-email"
+                },
+                "description": "Completes email verification using the token from the AuthService.API console output."
+              },
+              "response": []
+            },
+            {
+              "name": "Login Primary User",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('primary_user_id', body.userId);",
+                      "pm.environment.set('primary_email', body.email);",
+                      "pm.environment.set('primary_access_token', body.accessToken);",
+                      "pm.environment.set('primary_refresh_token', body.refreshToken);",
+                      "pm.environment.set('primary_login_requires_mfa', String(body.requiresMfa));",
+                      "if (body.mfaChallenge) {",
+                      "  pm.environment.set('primary_mfa_challenge', body.mfaChallenge);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{primary_email}}\",\n  \"password\": \"{{primary_password}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{auth_base_url}}/api/auth/login"
+                },
+                "description": "Logs the primary demo user in and stores the access and refresh tokens in the environment."
+              },
+              "response": []
+            },
+            {
+              "name": "Refresh Primary Token",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('primary_access_token', body.accessToken);",
+                      "pm.environment.set('primary_refresh_token', body.refreshToken);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{primary_refresh_token}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{auth_base_url}}/api/auth/refresh"
+                },
+                "description": "Rotates the primary refresh token and updates the bearer token used by later folders."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Secondary Account",
+          "description": "Second demo identity used to prove sharing and cross-user access.",
+          "item": [
+            {
+              "name": "Register Secondary User",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const stamp = Date.now();",
+                      "const secondaryEmail = pm.environment.get('secondary_email');",
+                      "const secondaryPassword = pm.environment.get('secondary_password');",
+                      "const secondaryFullName = pm.environment.get('secondary_full_name');",
+                      "const secondaryBio = pm.environment.get('secondary_bio');",
+                      "const secondaryAvatarUrl = pm.environment.get('secondary_avatar_url');",
+                      "pm.environment.unset('secondary_user_id');",
+                      "pm.environment.unset('secondary_access_token');",
+                      "pm.environment.unset('secondary_refresh_token');",
+                      "pm.environment.unset('secondary_verification_token');",
+                      "pm.environment.unset('secondary_reset_token');",
+                      "pm.environment.set('secondary_email', secondaryEmail || `secondary.${stamp}@demo.local`);",
+                      "pm.environment.set('secondary_password', secondaryPassword || 'PhotoApp!Demo2026');",
+                      "pm.environment.set('secondary_full_name', secondaryFullName || `Secondary Demo User ${stamp}`);",
+                      "pm.environment.set('secondary_bio', secondaryBio || 'Secondary account created through Postman');",
+                      "pm.environment.set('secondary_avatar_url', secondaryAvatarUrl || 'https://example.com/avatars/secondary.png');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('secondary_user_id', body.userId);",
+                      "pm.environment.set('secondary_email', body.email);",
+                      "pm.environment.set('secondary_registration_message', body.message);",
+                      "console.info('Copy the verification token printed by AuthService.API into secondary_verification_token before running Verify Secondary Email.');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{secondary_email}}\",\n  \"password\": \"{{secondary_password}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{auth_base_url}}/api/auth/register"
+                },
+                "description": "Creates the secondary demo user that will be used to validate shared media access."
+              },
+              "response": []
+            },
+            {
+              "name": "Verify Secondary Email",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('secondary_verification_token')) {",
+                      "  console.warn('Paste the verification token from AuthService.API into secondary_verification_token before running this request.');",
+                      "}"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 204', function () { pm.response.to.have.status(204); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userId\": \"{{secondary_user_id}}\",\n  \"email\": \"{{secondary_email}}\",\n  \"token\": \"{{secondary_verification_token}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{auth_base_url}}/api/auth/verify-email"
+                },
+                "description": "Completes email verification for the secondary user."
+              },
+              "response": []
+            },
+            {
+              "name": "Login Secondary User",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('secondary_user_id', body.userId);",
+                      "pm.environment.set('secondary_email', body.email);",
+                      "pm.environment.set('secondary_access_token', body.accessToken);",
+                      "pm.environment.set('secondary_refresh_token', body.refreshToken);",
+                      "pm.environment.set('secondary_login_requires_mfa', String(body.requiresMfa));",
+                      "if (body.mfaChallenge) {",
+                      "  pm.environment.set('secondary_mfa_challenge', body.mfaChallenge);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{secondary_email}}\",\n  \"password\": \"{{secondary_password}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{auth_base_url}}/api/auth/login"
+                },
+                "description": "Logs the secondary demo user in and stores the access and refresh tokens in the environment."
+              },
+              "response": []
+            },
+            {
+              "name": "Refresh Secondary Token",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('secondary_access_token', body.accessToken);",
+                      "pm.environment.set('secondary_refresh_token', body.refreshToken);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refreshToken\": \"{{secondary_refresh_token}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{auth_base_url}}/api/auth/refresh"
+                },
+                "description": "Rotates the secondary refresh token and updates the bearer token used by shared-access checks."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Recovery",
+          "description": "Optional password recovery flow. The reset token is not returned by an API, so paste it from logs or from your own email integration.",
+          "item": [
+            {
+              "name": "Request Primary Password Reset",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.environment.set('primary_new_password', 'PhotoApp!Reset2026');",
+                      "if (!pm.environment.get('primary_reset_token')) {",
+                      "  console.warn('Paste the password reset token into primary_reset_token before running Reset Primary Password.');",
+                      "}"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 204', function () { pm.response.to.have.status(204); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"{{primary_email}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{auth_base_url}}/api/auth/request-password-reset"
+                },
+                "description": "Creates a password reset token for the primary user. The current stub email service does not expose the token automatically."
+              },
+              "response": []
+            },
+            {
+              "name": "Reset Primary Password",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('primary_reset_token')) {",
+                      "  console.warn('Paste the password reset token into primary_reset_token before running this request.');",
+                      "}",
+                      "if (!pm.environment.get('primary_new_password')) {",
+                      "  pm.environment.set('primary_new_password', 'PhotoApp!Reset2026');",
+                      "}"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 204', function () { pm.response.to.have.status(204); });",
+                      "pm.environment.set('primary_password', pm.environment.get('primary_new_password'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"userId\": \"{{primary_user_id}}\",\n  \"token\": \"{{primary_reset_token}}\",\n  \"newPassword\": \"{{primary_new_password}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{auth_base_url}}/api/auth/reset-password"
+                },
+                "description": "Completes the password reset flow once you paste the reset token."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "User Management",
+      "description": "Profile and role operations for the primary user.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{primary_access_token}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "Profile",
+          "description": "Read and update the primary user profile.",
+          "item": [
+            {
+              "name": "Get Primary Profile",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('primary_profile_email', body.email);",
+                      "pm.environment.set('primary_full_name', body.fullName || pm.environment.get('primary_full_name'));",
+                      "pm.environment.set('primary_bio', body.bio || pm.environment.get('primary_bio'));",
+                      "pm.environment.set('primary_avatar_url', body.avatarUrl || pm.environment.get('primary_avatar_url'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{users_base_url}}/api/users/{{primary_user_id}}/profile"
+                },
+                "description": "Fetches the primary profile. If this returns 404 immediately after registration, give the consumer a moment and try again."
+              },
+              "response": []
+            },
+            {
+              "name": "Update Primary Profile",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const stamp = Date.now();",
+                      "pm.environment.set('primary_full_name', `Primary Demo User ${stamp} Updated`);",
+                      "pm.environment.set('primary_bio', `Updated from Postman at ${new Date().toISOString()}`);",
+                      "pm.environment.set('primary_avatar_url', 'https://example.com/avatars/primary-updated.png');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('primary_full_name', body.fullName || pm.environment.get('primary_full_name'));",
+                      "pm.environment.set('primary_bio', body.bio || pm.environment.get('primary_bio'));",
+                      "pm.environment.set('primary_avatar_url', body.avatarUrl || pm.environment.get('primary_avatar_url'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"fullName\": \"{{primary_full_name}}\",\n  \"bio\": \"{{primary_bio}}\",\n  \"avatarUrl\": \"{{primary_avatar_url}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{users_base_url}}/api/users/{{primary_user_id}}/profile"
+                },
+                "description": "Updates the primary profile with a new display name, bio, and avatar URL."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Roles",
+          "description": "Read the assigned roles and exercise the role management endpoints.",
+          "item": [
+            {
+              "name": "Get Primary Roles",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('primary_role_count', Array.isArray(body) ? String(body.length) : '0');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{users_base_url}}/api/users/{{primary_user_id}}/roles"
+                },
+                "description": "Lists all roles currently assigned to the primary user."
+              },
+              "response": []
+            },
+            {
+              "name": "Assign Moderator Role To Primary",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('primary_moderator_role_assigned_at', body.assignedAt);"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"expiresAt\": null\n}"
+                },
+                "url": {
+                  "raw": "{{users_base_url}}/api/users/{{primary_user_id}}/roles/{{moderator_role_id}}"
+                },
+                "description": "Assigns the seeded Moderator role to the primary user."
+              },
+              "response": []
+            },
+            {
+              "name": "Remove Moderator Role From Primary",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 204', function () { pm.response.to.have.status(204); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{users_base_url}}/api/users/{{primary_user_id}}/roles/{{moderator_role_id}}"
+                },
+                "description": "Removes the Moderator role again so the demo finishes in a clean state."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Media",
+      "description": "Album, upload, sharing, and cache-aware media operations.",
+      "item": [
+        {
+          "name": "Primary Owner Flow",
+          "description": "Main media scenario executed as the primary user.",
+          "auth": {
+            "type": "bearer",
+            "bearer": [
+              {
+                "key": "token",
+                "value": "{{primary_access_token}}",
+                "type": "string"
+              }
+            ]
+          },
+          "item": [
+            {
+              "name": "Create Primary Album",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const stamp = Date.now();",
+                      "pm.environment.set('primary_album_name', `Primary Demo Album ${stamp}`);",
+                      "pm.environment.set('primary_album_description', 'Primary album created from Postman');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('primary_album_id', body.albumId);",
+                      "pm.environment.set('primary_album_name', body.name || pm.environment.get('primary_album_name'));",
+                      "pm.environment.set('primary_album_description', body.description || pm.environment.get('primary_album_description'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"{{primary_album_name}}\",\n  \"description\": \"{{primary_album_description}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{media_base_url}}/api/albums"
+                },
+                "description": "Creates the main album that will hold the demo upload."
+              },
+              "response": []
+            },
+            {
+              "name": "Create Archive Album",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const stamp = Date.now();",
+                      "pm.environment.set('archive_album_name', `Archive Demo Album ${stamp}`);",
+                      "pm.environment.set('archive_album_description', 'Archive album used during Postman cleanup');"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('archive_album_id', body.albumId);",
+                      "pm.environment.set('archive_album_name', body.name || pm.environment.get('archive_album_name'));",
+                      "pm.environment.set('archive_album_description', body.description || pm.environment.get('archive_album_description'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"{{archive_album_name}}\",\n  \"description\": \"{{archive_album_description}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{media_base_url}}/api/albums"
+                },
+                "description": "Creates a second album so the move endpoint has a real target."
+              },
+              "response": []
+            },
+            {
+              "name": "List My Albums",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.expect(body).to.have.property('owned');",
+                      "pm.expect(body).to.have.property('shared');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{media_base_url}}/api/albums"
+                },
+                "description": "Lists the albums owned by the primary user and the ones shared with them."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Primary Album",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.expect(body.albumId).to.eql(pm.environment.get('primary_album_id'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{media_base_url}}/api/albums/{{primary_album_id}}"
+                },
+                "description": "Reads the album details and primes the cache for later invalidation checks."
+              },
+              "response": []
+            },
+            {
+              "name": "Rename Primary Album",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const stamp = Date.now();",
+                      "pm.environment.set('primary_album_renamed_name', `Primary Demo Album Updated ${stamp}`);",
+                      "pm.environment.set('primary_album_renamed_description', `Renamed from Postman at ${new Date().toISOString()}`);"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('primary_album_name', body.name || pm.environment.get('primary_album_renamed_name'));",
+                      "pm.environment.set('primary_album_description', body.description || pm.environment.get('primary_album_renamed_description'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"{{primary_album_renamed_name}}\",\n  \"description\": \"{{primary_album_renamed_description}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{media_base_url}}/api/albums/{{primary_album_id}}"
+                },
+                "description": "Renames the main album so the cache invalidation path gets exercised."
+              },
+              "response": []
+            },
+            {
+              "name": "Upload Demo Media",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "const stamp = Date.now();",
+                      "pm.environment.set('media_display_name', `Demo Media ${stamp}`);",
+                      "pm.environment.set('primary_media_renamed_name', `Demo Media Renamed ${stamp}`);"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('primary_media_id', body.mediaId);",
+                      "pm.environment.set('media_display_name', body.displayName || pm.environment.get('media_display_name'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": "/Users/adrianczubaty/RiderProjects/PhotoAppBackend/postman/assets/demo-upload.png"
+                    },
+                    {
+                      "key": "displayName",
+                      "value": "{{media_display_name}}",
+                      "type": "text"
+                    },
+                    {
+                      "key": "checksum",
+                      "value": "",
+                      "type": "text"
+                    }
+                  ]
+                },
+                "url": {
+                  "raw": "{{media_base_url}}/api/albums/{{primary_album_id}}/media"
+                },
+                "description": "Uploads the included demo fixture. Replace the file with any local JPG or PNG if you want a real image during the presentation."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Uploaded Media",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.expect(body.mediaId).to.eql(pm.environment.get('primary_media_id'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{media_base_url}}/api/media/{{primary_media_id}}"
+                },
+                "description": "Reads the uploaded media details and primes the cache for invalidation checks."
+              },
+              "response": []
+            },
+            {
+              "name": "Rename Uploaded Media",
+              "event": [
+                {
+                  "listen": "prerequest",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "if (!pm.environment.get('primary_media_renamed_name')) {",
+                      "  const stamp = Date.now();",
+                      "  pm.environment.set('primary_media_renamed_name', `Demo Media Renamed ${stamp}`);",
+                      "}"
+                    ]
+                  }
+                },
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('media_display_name', body.displayName || pm.environment.get('primary_media_renamed_name'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"displayName\": \"{{primary_media_renamed_name}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{media_base_url}}/api/media/{{primary_media_id}}"
+                },
+                "description": "Renames the uploaded media item."
+              },
+              "response": []
+            },
+            {
+              "name": "Add Tag To Uploaded Media",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.environment.set('media_tag_name', body.tagName || pm.environment.get('media_tag_name'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tagName\": \"{{media_tag_name}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{media_base_url}}/api/media/{{primary_media_id}}/tags"
+                },
+                "description": "Adds a tag to the uploaded media item so the tag assignment and read path can be exercised."
+              },
+              "response": []
+            },
+            {
+              "name": "Share Primary Album With Secondary",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sharedWithUserId\": \"{{secondary_user_id}}\",\n  \"permission\": \"{{share_permission_view}}\",\n  \"expiresAt\": null\n}"
+                },
+                "url": {
+                  "raw": "{{media_base_url}}/api/albums/{{primary_album_id}}/share"
+                },
+                "description": "Shares the album with the secondary user using view permissions."
+              },
+              "response": []
+            },
+            {
+              "name": "Share Uploaded Media With Secondary",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"sharedWithUserId\": \"{{secondary_user_id}}\",\n  \"permission\": \"{{share_permission_edit}}\",\n  \"expiresAt\": null\n}"
+                },
+                "url": {
+                  "raw": "{{media_base_url}}/api/media/{{primary_media_id}}/share"
+                },
+                "description": "Shares the uploaded media directly with the secondary user using edit permissions."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Secondary Viewer Flow",
+          "description": "Reads shared resources as the secondary user after the primary user has shared them.",
+          "auth": {
+            "type": "bearer",
+            "bearer": [
+              {
+                "key": "token",
+                "value": "{{secondary_access_token}}",
+                "type": "string"
+              }
+            ]
+          },
+          "item": [
+            {
+              "name": "List Secondary Albums",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.expect(body).to.have.property('owned');",
+                      "pm.expect(body).to.have.property('shared');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{media_base_url}}/api/albums"
+                },
+                "description": "Lists the albums visible to the secondary user, including shared ones."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Shared Primary Album",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.expect(body.albumId).to.eql(pm.environment.get('primary_album_id'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{media_base_url}}/api/albums/{{primary_album_id}}"
+                },
+                "description": "Reads the shared album as the secondary user."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Shared Album Media",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{media_base_url}}/api/albums/{{primary_album_id}}/media"
+                },
+                "description": "Shows the album media list that was shared by the primary user."
+              },
+              "response": []
+            },
+            {
+              "name": "Get Shared Uploaded Media",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                      "const body = pm.response.json();",
+                      "pm.expect(body.mediaId).to.eql(pm.environment.get('primary_media_id'));"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{media_base_url}}/api/media/{{primary_media_id}}"
+                },
+                "description": "Reads the shared media item directly as the secondary user."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Cleanup",
+          "description": "Cleans up the media created during the demo by moving, untagging, and deleting it.",
+          "auth": {
+            "type": "bearer",
+            "bearer": [
+              {
+                "key": "token",
+                "value": "{{primary_access_token}}",
+                "type": "string"
+              }
+            ]
+          },
+          "item": [
+            {
+              "name": "Move Uploaded Media To Archive Album",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"targetAlbumId\": \"{{archive_album_id}}\"\n}"
+                },
+                "url": {
+                  "raw": "{{media_base_url}}/api/media/{{primary_media_id}}/move"
+                },
+                "description": "Moves the uploaded media into the archive album before it is deleted."
+              },
+              "response": []
+            },
+            {
+              "name": "Remove Tag From Uploaded Media",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 204', function () { pm.response.to.have.status(204); });"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "url": {
+                  "raw": "{{media_base_url}}/api/media/{{primary_media_id}}/tags/{{media_tag_name}}"
+                },
+                "description": "Removes the tag again so the demo ends with a clean media item."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Uploaded Media",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 204', function () { pm.response.to.have.status(204); });",
+                      "pm.environment.unset('primary_media_id');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Cleanup after Postman demo\"\n}"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{media_base_url}}/api/media/{{primary_media_id}}"
+                },
+                "description": "Deletes the uploaded media item after the secondary user has viewed it."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Archive Album",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 204', function () { pm.response.to.have.status(204); });",
+                      "pm.environment.unset('archive_album_id');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Cleanup after Postman demo\"\n}"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{media_base_url}}/api/albums/{{archive_album_id}}"
+                },
+                "description": "Deletes the archive album used as the move target."
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Primary Album",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test('Status code is 204', function () { pm.response.to.have.status(204); });",
+                      "pm.environment.unset('primary_album_id');"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "DELETE",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"reason\": \"Cleanup after Postman demo\"\n}"
+                },
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "{{media_base_url}}/api/albums/{{primary_album_id}}"
+                },
+                "description": "Deletes the main demo album after the media has been removed."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Session Cleanup",
+      "description": "Revokes refresh tokens at the very end of the demo.",
+      "item": [
+        {
+          "name": "Logout Secondary User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () { pm.response.to.have.status(204); });",
+                  "pm.environment.unset('secondary_access_token');",
+                  "pm.environment.unset('secondary_refresh_token');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{secondary_access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{secondary_refresh_token}}\",\n  \"refreshTokenId\": null,\n  \"reason\": \"Postman demo cleanup\"\n}"
+            },
+            "url": {
+              "raw": "{{auth_base_url}}/api/auth/logout"
+            },
+            "description": "Logs out the secondary user after the shared-access checks are done."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout Primary User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status code is 204', function () { pm.response.to.have.status(204); });",
+                  "pm.environment.unset('primary_access_token');",
+                  "pm.environment.unset('primary_refresh_token');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{primary_access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{primary_refresh_token}}\",\n  \"refreshTokenId\": null,\n  \"reason\": \"Postman demo cleanup\"\n}"
+            },
+            "url": {
+              "raw": "{{auth_base_url}}/api/auth/logout"
+            },
+            "description": "Logs out the primary user at the very end of the demo.",
+            "response": []
+          }
+        }
+      ]
+    }
+  ]
+}

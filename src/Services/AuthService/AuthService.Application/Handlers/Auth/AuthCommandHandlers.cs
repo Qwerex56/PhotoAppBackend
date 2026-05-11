@@ -1,3 +1,8 @@
+using System.Data.Common;
+using AuthService.Domain.Entities;
+using MassTransit;
+using Shared.Contracts.Events.Auth;
+
 namespace AuthService.Application.Handlers.Auth;
 
 using MediatR;
@@ -17,34 +22,95 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, Result<Re
     private readonly IPasswordHasher _passwordHasher;
     private readonly IEmailTokenService _emailTokenService;
     private readonly IEmailService _emailService;
+    private readonly IUserRepository _userRepository;
+    private readonly IEmailVerificationTokenRepository _emailVerificationTokenRepository;
+    private readonly IPublishEndpoint _publishEndpoint;
     // TODO: Review by repo owner. Further instructions needed for COPILOT. After sending instructions made rework/implemntation HERE
 
     public RegisterCommandHandler(
         IAuthUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
         IEmailTokenService emailTokenService,
-        IEmailService emailService)
+        IEmailService emailService,
+        IUserRepository userRepository,
+        IEmailVerificationTokenRepository emailVerificationTokenRepository,
+        IPublishEndpoint publishEndpoint)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _emailTokenService = emailTokenService;
         _emailService = emailService;
+        _userRepository = userRepository;
+        _emailVerificationTokenRepository = emailVerificationTokenRepository;
+        _publishEndpoint = publishEndpoint;
     }
 
-    public async Task<Result<RegisterCommandResponse>> Handle(RegisterCommand request, CancellationToken cancellationToken)
+    public async Task<Result<RegisterCommandResponse>> Handle(RegisterCommand request,
+        CancellationToken cancellationToken)
     {
         // TODO: Review by repo owner. Further instructions needed for COPILOT. After sending instructions made rework/implemntation HERE
-        // 1. Check if user with this email already exists
-        // 2. Hash the password using Argon2id
-        // 3. Create new User entity
-        // 4. Save to database
-        // 5. Generate email verification token
-        // 6. Send verification email
-        // 7. Publish UserRegisteredEvent
-        // 8. Return response
+        // 1. Check if user with this email already exists x
+        // 2. Hash the password using Argon2id x
+        // 3. Create new User entity x
+        // 4. Save to database x
+        // 5. Generate email verification token x
+        // 6. Send verification email 
+        // 7. Publish UserRegisteredEvent x
+        // 8. Return response x
 
-        return Result<RegisterCommandResponse>.Failure(
-            Error.InternalError("Register handler not yet implemented"));
+        // Check if user exists
+        var userExists = await _userRepository.ExistsByEmailAsync(request.Email, cancellationToken);
+
+        if (userExists)
+        {
+            return Result<RegisterCommandResponse>.Failure(Error.Conflict(ErrorCodes.UserAlreadyExists));
+        }
+
+        // Create new user and email verification token
+        // TODO: Missing full name in request
+        var hashedPassword = _passwordHasher.HashPassword(request.Password);
+        var user = new User(Guid.NewGuid(), request.Email, hashedPassword);
+
+        var verificationToken = _emailTokenService.GenerateToken();
+        var emailToken = new EmailVerificationToken(user.Id,
+            user.Email,
+            _emailTokenService.HashToken(verificationToken),
+            DateTime.UtcNow.AddMinutes(AuthConstants.AccessTokenExpirationMinutes));
+
+// TODO: Remove this line after testing. It's only for demonstration purposes to show the generated token in the console.
+            Console.WriteLine($"Generated verification token for {user.Email}: {verificationToken} (hash: {emailToken.TokenHash})");
+
+        await _userRepository.CreateAsync(user, cancellationToken);
+        await _emailVerificationTokenRepository.CreateAsync(emailToken, cancellationToken);
+        
+        // Save to database
+        try
+        {
+            await _unitOfWork.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbException e)
+        {
+            return Result<RegisterCommandResponse>.Failure(Error.Conflict(e.Message));
+        }
+        
+        // Send events and verification email
+        await _emailService.SendEmailVerificationAsync(user.Email, verificationToken, cancellationToken);
+
+        await _publishEndpoint.Publish(new UserRegisteredEvent
+        {
+            UserId = user.Id,
+            Email = user.Email,
+            FullName = user.Email,
+            RegisteredAt = DateTime.UtcNow,
+            Source = "AuthService.Application"
+        }, cancellationToken);
+
+        // Return operation result
+        return Result<RegisterCommandResponse>.Success(new RegisterCommandResponse
+        {
+            UserId = user.Id,
+            Email = user.Email,
+        });
     }
 }
 
@@ -57,16 +123,19 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<LoginCom
     private readonly IAuthUnitOfWork _unitOfWork;
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
+    private readonly IEmailTokenService _emailTokenService;
     // TODO: Review by repo owner. Further instructions needed for COPILOT. After sending instructions made rework/implemntation HERE
 
     public LoginCommandHandler(
         IAuthUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
-        ITokenService tokenService)
+        ITokenService tokenService,
+        IEmailTokenService emailTokenService)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
+        _emailTokenService = emailTokenService;
     }
 
     public async Task<Result<LoginCommandResponse>> Handle(LoginCommand request, CancellationToken cancellationToken)
@@ -83,8 +152,68 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<LoginCom
         // 9. Publish UserLoggedInEvent
         // 10. Return tokens
 
-        return Result<LoginCommandResponse>.Failure(
-            Error.InternalError("Login handler not yet implemented"));
+        var user = await _unitOfWork.Users.GetByEmailAsync(request.Email, cancellationToken);
+
+        if (user is null)
+        {
+            return Result<LoginCommandResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidCredentials));
+        }
+
+        if (user.IsLocked)
+        {
+            return Result<LoginCommandResponse>.Failure(Error.Forbidden("Account is locked"));
+        }
+
+        if (!user.EmailVerified)
+        {
+            return Result<LoginCommandResponse>.Failure(Error.Forbidden(ErrorCodes.EmailNotVerified));
+        }
+
+        if (!_passwordHasher.VerifyPassword(request.Password, user.PasswordHash))
+        {
+            user.RecordFailedLoginAttempt();
+            await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+
+            return Result<LoginCommandResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidCredentials));
+        }
+
+        user.RecordSuccessfulLogin();
+
+        var accessToken = _tokenService.GenerateAccessToken(user.Id, user.Email, []);
+        var refreshTokenValue = _tokenService.GenerateRefreshToken();
+        var refreshToken = new RefreshToken(
+            user.Id,
+            _emailTokenService.HashToken(refreshTokenValue),
+            DateTime.UtcNow.AddDays(AuthConstants.RefreshTokenExpirationDays),
+            request.IpAddress,
+            request.UserAgent);
+
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+            await _unitOfWork.RefreshTokens.CreateAsync(refreshToken, cancellationToken);
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+        }
+        catch (DbException e)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+
+            return Result<LoginCommandResponse>.Failure(Error.InternalError(e.Message));
+        }
+
+        return Result<LoginCommandResponse>.Success(new LoginCommandResponse
+        {
+            UserId = user.Id,
+            Email = user.Email,
+            AccessToken = accessToken,
+            RefreshToken = refreshTokenValue,
+            AccessTokenExpiresIn = AuthConstants.AccessTokenExpirationMinutes * 60,
+            RequiresMfa = false,
+            MfaChallenge = null
+        });
     }
 }
 
@@ -97,19 +226,23 @@ public class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCommand, R
     private readonly IAuthUnitOfWork _unitOfWork;
     private readonly ITokenService _tokenService;
     private readonly IEmailTokenService _emailTokenService;
+    private readonly IPublishEndpoint _publishEndpoint;
     // TODO: Review by repo owner. Further instructions needed for COPILOT. After sending instructions made rework/implemntation HERE
 
     public RefreshTokenCommandHandler(
         IAuthUnitOfWork unitOfWork,
         ITokenService tokenService,
-        IEmailTokenService emailTokenService)
+        IEmailTokenService emailTokenService,
+        IPublishEndpoint publishEndpoint)
     {
         _unitOfWork = unitOfWork;
         _tokenService = tokenService;
         _emailTokenService = emailTokenService;
+        _publishEndpoint = publishEndpoint;
     }
 
-    public async Task<Result<RefreshTokenResponse>> Handle(RefreshTokenCommand request, CancellationToken cancellationToken)
+    public async Task<Result<RefreshTokenResponse>> Handle(RefreshTokenCommand request,
+        CancellationToken cancellationToken)
     {
         // TODO: Review by repo owner. Further instructions needed for COPILOT. After sending instructions made rework/implemntation HERE
         // 1. Find refresh token hash in database
@@ -123,8 +256,84 @@ public class RefreshTokenCommandHandler : IRequestHandler<RefreshTokenCommand, R
         // 9. Return new tokens
         // 10. Handle token reuse: publish SecurityAlert event, revoke all user tokens
 
-        return Result<RefreshTokenResponse>.Failure(
-            Error.InternalError("Refresh token handler not yet implemented"));
+        var tokenHash = _emailTokenService.HashToken(request.RefreshToken);
+        var refreshToken = await _unitOfWork.RefreshTokens.GetByHashAsync(tokenHash, cancellationToken);
+
+        if (refreshToken is null)
+        {
+            return Result<RefreshTokenResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidRefreshToken));
+        }
+
+        if (refreshToken.HasBeenReused())
+        {
+            await _unitOfWork.RefreshTokens.RevokeAllUserTokensAsync(
+                refreshToken.UserId,
+                ErrorCodes.RefreshTokenReuse,
+                cancellationToken);
+
+            await _publishEndpoint.Publish(new SessionRevokedEvent
+            {
+                UserId = refreshToken.UserId,
+                TokenId = refreshToken.Id,
+                Reason = ErrorCodes.RefreshTokenReuse,
+                RevokedAt = DateTime.UtcNow
+            }, cancellationToken);
+
+            return Result<RefreshTokenResponse>.Failure(Error.Unauthorized(ErrorCodes.RefreshTokenReuse));
+        }
+
+        if (refreshToken.IsExpired)
+        {
+            return Result<RefreshTokenResponse>.Failure(Error.Unauthorized(ErrorCodes.TokenExpired));
+        }
+
+        var user = await _unitOfWork.Users.GetByIdAsync(refreshToken.UserId, cancellationToken);
+
+        if (user is null)
+        {
+            return Result<RefreshTokenResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidRefreshToken));
+        }
+
+        var accessToken = _tokenService.GenerateAccessToken(user.Id, user.Email, []);
+        var newRefreshTokenValue = _tokenService.GenerateRefreshToken();
+        var newRefreshToken = new RefreshToken(
+            user.Id,
+            _emailTokenService.HashToken(newRefreshTokenValue),
+            DateTime.UtcNow.AddDays(AuthConstants.RefreshTokenExpirationDays),
+            request.IpAddress,
+            request.UserAgent);
+
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            refreshToken.MarkAsRotated(newRefreshToken.Id);
+            await _unitOfWork.RefreshTokens.UpdateAsync(refreshToken, cancellationToken);
+            await _unitOfWork.RefreshTokens.CreateAsync(newRefreshToken, cancellationToken);
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+        }
+        catch (DbException e)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+
+            return Result<RefreshTokenResponse>.Failure(Error.InternalError(e.Message));
+        }
+
+        await _publishEndpoint.Publish(new RefreshTokenRotatedEvent
+        {
+            UserId = user.Id,
+            TokenId = newRefreshToken.Id,
+            RotatedAt = DateTime.UtcNow,
+            ExpiresAt = newRefreshToken.ExpiresAt
+        }, cancellationToken);
+
+        return Result<RefreshTokenResponse>.Success(new RefreshTokenResponse
+        {
+            AccessToken = accessToken,
+            RefreshToken = newRefreshTokenValue,
+            AccessTokenExpiresIn = AuthConstants.AccessTokenExpirationMinutes * 60
+        });
     }
 }
 
@@ -136,14 +345,17 @@ public class VerifyEmailCommandHandler : IRequestHandler<VerifyEmailCommand, Res
 {
     private readonly IAuthUnitOfWork _unitOfWork;
     private readonly IEmailTokenService _emailTokenService;
+    private readonly IPublishEndpoint _publishEndpoint;
     // TODO: Review by repo owner. Further instructions needed for COPILOT. After sending instructions made rework/implemntation HERE
 
     public VerifyEmailCommandHandler(
         IAuthUnitOfWork unitOfWork,
-        IEmailTokenService emailTokenService)
+        IEmailTokenService emailTokenService,
+        IPublishEndpoint publishEndpoint)
     {
         _unitOfWork = unitOfWork;
         _emailTokenService = emailTokenService;
+        _publishEndpoint = publishEndpoint;
     }
 
     public async Task<Result> Handle(VerifyEmailCommand request, CancellationToken cancellationToken)
@@ -155,10 +367,97 @@ public class VerifyEmailCommandHandler : IRequestHandler<VerifyEmailCommand, Res
         // 4. Mark token as verified
         // 5. Mark user as email verified
         // 6. Save changes
-        // 7. Publish EmailVerifiedEvent
+        var tokenHash = _emailTokenService.HashToken(request.Token);
+        var verificationToken = await _unitOfWork.EmailVerificationTokens.GetByHashAsync(tokenHash, cancellationToken);
 
-        return Result.Failure(
-            Error.InternalError("Verify email handler not yet implemented"));
+        if (verificationToken is null)
+        {
+            await _publishEndpoint.Publish(new EmailVerificationAttemptedEvent
+            {
+                UserId = request.UserId,
+                Email = request.Email,
+                Success = false,
+                AttemptedAt = DateTime.UtcNow,
+                Source = "AuthService.Application"
+            }, cancellationToken);
+
+            return Result.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        if (verificationToken.UserId != request.UserId ||
+            !string.Equals(verificationToken.Email, request.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            await _publishEndpoint.Publish(new EmailVerificationAttemptedEvent
+            {
+                UserId = request.UserId,
+                Email = request.Email,
+                Success = false,
+                AttemptedAt = DateTime.UtcNow,
+                Source = "AuthService.Application"
+            }, cancellationToken);
+
+            return Result.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        if (!verificationToken.IsValid)
+        {
+            await _publishEndpoint.Publish(new EmailVerificationAttemptedEvent
+            {
+                UserId = request.UserId,
+                Email = request.Email,
+                Success = false,
+                AttemptedAt = DateTime.UtcNow,
+                Source = "AuthService.Application"
+            }, cancellationToken);
+
+            return Result.Failure(Error.Unauthorized(ErrorCodes.TokenExpired));
+        }
+
+        var user = await _unitOfWork.Users.GetByIdAsync(request.UserId, cancellationToken);
+
+        if (user is null)
+        {
+            await _publishEndpoint.Publish(new EmailVerificationAttemptedEvent
+            {
+                UserId = request.UserId,
+                Email = request.Email,
+                Success = false,
+                AttemptedAt = DateTime.UtcNow,
+                Source = "AuthService.Application"
+            }, cancellationToken);
+
+            return Result.Failure(Error.Unauthorized(ErrorCodes.UserNotFound));
+        }
+
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            verificationToken.MarkAsVerified();
+            user.VerifyEmail();
+
+            await _unitOfWork.EmailVerificationTokens.UpdateAsync(verificationToken, cancellationToken);
+            await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+        }
+        catch (DbException e)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+
+            return Result.Failure(Error.InternalError(e.Message));
+        }
+
+        await _publishEndpoint.Publish(new EmailVerificationAttemptedEvent
+        {
+            UserId = user.Id,
+            Email = user.Email,
+            Success = true,
+            AttemptedAt = DateTime.UtcNow,
+            Source = "AuthService.Application"
+        }, cancellationToken);
+
+        return Result.Success();
     }
 }
 
@@ -192,8 +491,38 @@ public class RequestPasswordResetCommandHandler : IRequestHandler<RequestPasswor
         // 4. Send email with reset link
         // 5. Return success (don't reveal whether user exists for security)
 
-        return Result.Failure(
-            Error.InternalError("Request password reset handler not yet implemented"));
+        var user = await _unitOfWork.Users.GetByEmailAsync(request.Email, cancellationToken);
+
+        if (user is null)
+        {
+            return Result.Success();
+        }
+
+        var resetTokenValue = _emailTokenService.GenerateToken();
+        var resetToken = new PasswordResetToken(
+            user.Id,
+            _emailTokenService.HashToken(resetTokenValue),
+            DateTime.UtcNow.AddMinutes(60),
+            request.IpAddress);
+
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            await _unitOfWork.PasswordResetTokens.CreateAsync(resetToken, cancellationToken);
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+        }
+        catch (DbException e)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+
+            return Result.Failure(Error.InternalError(e.Message));
+        }
+
+        await _emailService.SendPasswordResetAsync(user.Email, resetTokenValue, cancellationToken);
+
+        return Result.Success();
     }
 }
 
@@ -232,8 +561,71 @@ public class ResetPasswordCommandHandler : IRequestHandler<ResetPasswordCommand,
         // 9. Revoke all user sessions (for security)
         // 10. Publish PasswordChangedEvent
 
-        return Result.Failure(
-            Error.InternalError("Reset password handler not yet implemented"));
+        var tokenHash = _emailTokenService.HashToken(request.Token);
+        var resetToken = await _unitOfWork.PasswordResetTokens.GetByHashAsync(tokenHash, cancellationToken);
+
+        if (resetToken is null)
+        {
+            return Result.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        if (resetToken.UserId != request.UserId)
+        {
+            resetToken.IncrementAttempt();
+            await _unitOfWork.PasswordResetTokens.UpdateAsync(resetToken, cancellationToken);
+
+            return Result.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        if (resetToken.HasExceededAttempts)
+        {
+            return Result.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        if (!resetToken.IsValid)
+        {
+            resetToken.IncrementAttempt();
+            await _unitOfWork.PasswordResetTokens.UpdateAsync(resetToken, cancellationToken);
+
+            return Result.Failure(Error.Unauthorized(ErrorCodes.TokenExpired));
+        }
+
+        var user = await _unitOfWork.Users.GetByIdAsync(request.UserId, cancellationToken);
+
+        if (user is null)
+        {
+            resetToken.IncrementAttempt();
+            await _unitOfWork.PasswordResetTokens.UpdateAsync(resetToken, cancellationToken);
+
+            return Result.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        var newPasswordHash = _passwordHasher.HashPassword(request.NewPassword);
+
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            user.UpdatePassword(newPasswordHash);
+            resetToken.MarkAsUsed();
+
+            await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
+            await _unitOfWork.PasswordResetTokens.UpdateAsync(resetToken, cancellationToken);
+            await _unitOfWork.RefreshTokens.RevokeAllUserTokensAsync(
+                user.Id,
+                "password_changed",
+                cancellationToken);
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+        }
+        catch (DbException e)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+
+            return Result.Failure(Error.InternalError(e.Message));
+        }
+
+        return Result.Success();
     }
 }
 
@@ -244,23 +636,77 @@ public class ResetPasswordCommandHandler : IRequestHandler<ResetPasswordCommand,
 public class LogoutCommandHandler : IRequestHandler<LogoutCommand, Result>
 {
     private readonly IAuthUnitOfWork _unitOfWork;
+    private readonly IEmailTokenService _emailTokenService;
+    private readonly IPublishEndpoint _publishEndpoint;
     // TODO: Review by repo owner. Further instructions needed for COPILOT. After sending instructions made rework/implemntation HERE
 
-    public LogoutCommandHandler(IAuthUnitOfWork unitOfWork)
+    public LogoutCommandHandler(IAuthUnitOfWork unitOfWork, IEmailTokenService emailTokenService, IPublishEndpoint publishEndpoint)
     {
         _unitOfWork = unitOfWork;
+        _emailTokenService = emailTokenService;
+        _publishEndpoint = publishEndpoint;
     }
 
     public async Task<Result> Handle(LogoutCommand request, CancellationToken cancellationToken)
     {
         // TODO: Review by repo owner. Further instructions needed for COPILOT. After sending instructions made rework/implemntation HERE
-        // 1. If specific token ID provided, revoke just that token
-        // 2. Otherwise, revoke all user tokens
-        // 3. Save changes
-        // 4. Add token ID to Redis blacklist for immediate effect
-        // 5. Publish SessionRevokedEvent
+        // 1. If refresh token value provided, revoke just that token
+        // 2. Otherwise, if token ID provided, revoke just that token
+        // 3. Otherwise, revoke all user tokens
+        // 4. Save changes
+        var reason = request.Reason ?? "logout";
+        Guid? revokedTokenId = null;
 
-        return Result.Failure(
-            Error.InternalError("Logout handler not yet implemented"));
+        try
+        {
+            await _unitOfWork.BeginTransactionAsync(cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(request.RefreshToken))
+            {
+                var tokenHash = _emailTokenService.HashToken(request.RefreshToken);
+                var refreshToken = await _unitOfWork.RefreshTokens.GetByHashAsync(tokenHash, cancellationToken);
+
+                if (refreshToken is not null && refreshToken.UserId == request.UserId)
+                {
+                    refreshToken.Revoke(reason);
+                    revokedTokenId = refreshToken.Id;
+                    await _unitOfWork.RefreshTokens.UpdateAsync(refreshToken, cancellationToken);
+                }
+            }
+            else if (request.RefreshTokenId is not null)
+            {
+                var refreshToken = await _unitOfWork.RefreshTokens.GetByIdAsync(request.RefreshTokenId.Value, cancellationToken);
+
+                if (refreshToken is not null && refreshToken.UserId == request.UserId)
+                {
+                    refreshToken.Revoke(reason);
+                    revokedTokenId = refreshToken.Id;
+                    await _unitOfWork.RefreshTokens.UpdateAsync(refreshToken, cancellationToken);
+                }
+            }
+            else
+            {
+                await _unitOfWork.RefreshTokens.RevokeAllUserTokensAsync(request.UserId, reason, cancellationToken);
+            }
+
+            await _unitOfWork.CommitTransactionAsync(cancellationToken);
+        }
+        catch (DbException e)
+        {
+            await _unitOfWork.RollbackTransactionAsync(cancellationToken);
+
+            return Result.Failure(Error.InternalError(e.Message));
+        }
+
+        await _publishEndpoint.Publish(new SessionRevokedEvent
+        {
+            UserId = request.UserId,
+            TokenId = revokedTokenId ?? request.RefreshTokenId,
+            Reason = reason,
+            RevokedAt = DateTime.UtcNow,
+            Source = "AuthService.Application"
+        }, cancellationToken);
+
+        return Result.Success();
     }
 }

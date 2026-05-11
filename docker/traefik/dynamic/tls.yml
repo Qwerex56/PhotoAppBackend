@@ -1,0 +1,4 @@
+tls:
+  certificates:
+    - certFile: /certs/photoapp.localhost.pem
+      keyFile: /certs/photoapp.localhost-key.pem

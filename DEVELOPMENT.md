@@ -56,11 +56,23 @@ Establish AuthService and UserManagementService with basic functionality.
    - Create initial migration
    - Seed default roles (Admin, User, Moderator)
 
+### Local HTTPS Stack
+1. **Generate local certs with mkcert**
+   - Run `bash scripts/setup-local-https.sh`
+   - This creates trusted certs for `localhost`, `auth.localhost`, `users.localhost`, `media.localhost`, and `traefik.localhost`
+2. **Run Docker stack**
+   - `docker compose up --build`
+3. **Check services**
+   - AuthService: `https://auth.localhost`
+   - UserManagementService: `https://users.localhost`
+   - MediaService: `https://media.localhost`
+   - Traefik dashboard: `http://localhost:8080`
+
 ### Phase 2: Integration & Security
 Connect services, implement security policies, add MFA support.
 
 ### Phase 3: Media Service
-Photo upload, storage, and sharing functionality.
+Album and media management, sharing, tagging, and upload safety.
 
 ---
 

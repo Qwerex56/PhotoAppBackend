@@ -1,0 +1,38 @@
+http:
+  routers:
+    authservice:
+      rule: Host(`auth.localhost`)
+      entryPoints:
+        - websecure
+      tls: {}
+      service: authservice
+
+    usermanagementservice:
+      rule: Host(`users.localhost`)
+      entryPoints:
+        - websecure
+      tls: {}
+      service: usermanagementservice
+
+    mediaservice:
+      rule: Host(`media.localhost`)
+      entryPoints:
+        - websecure
+      tls: {}
+      service: mediaservice
+
+  services:
+    authservice:
+      loadBalancer:
+        servers:
+          - url: http://authservice-api:8080
+
+    usermanagementservice:
+      loadBalancer:
+        servers:
+          - url: http://usermanagementservice-api:8080
+
+    mediaservice:
+      loadBalancer:
+        servers:
+          - url: http://mediaservice-api:8080

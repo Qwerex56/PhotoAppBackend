@@ -9,12 +9,19 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.3" />
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.6" />
+                <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.25" />
+                <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.25">
+                    <PrivateAssets>all</PrivateAssets>
+                    <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+                </PackageReference>
+                <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.25" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+                <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.2" />
         <PackageReference Include="MediatR" Version="14.1.0" />
         <PackageReference Include="FluentValidation" Version="12.1.1" />
         <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.3" />
-        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.2" />
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.18.0" />
         <PackageReference Include="Serilog" Version="3.1.1" />
         <PackageReference Include="Serilog.AspNetCore" Version="8.0.0" />
         <PackageReference Include="Serilog.Sinks.Console" Version="5.0.1" />
@@ -22,6 +29,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\AuthService.Application\AuthService.Application.csproj" />
         <ProjectReference Include="..\..\..\Shared\Shared.Constants\Shared.Constants.csproj" />
         <ProjectReference Include="..\..\..\Shared\Shared.Contracts\Shared.Contracts.csproj" />
         <ProjectReference Include="..\..\..\Shared\Shared.Results\Shared.Results.csproj" />

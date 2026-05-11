@@ -8,6 +8,8 @@ public static class AuthConstants
     public const string AuthenticationScheme = "Bearer";
     public const int AccessTokenExpirationMinutes = 15;
     public const int RefreshTokenExpirationDays = 7;
+    public const string RefreshTokenCookieName = "photoapp_refresh_token";
+    public const string RefreshTokenCookiePath = "/api/auth";
     public const string JwtClaimSubject = "sub";
     public const string JwtClaimEmail = "email";
     public const string JwtClaimRoles = "roles";
@@ -42,6 +44,21 @@ public static class ErrorCodes
     public const string RoleAlreadyAssigned = "USER_ROLE_ALREADY_ASSIGNED";
     public const string CannotRemoveAdminRole = "USER_CANNOT_REMOVE_ADMIN_ROLE";
 
+    // Media errors
+    public const string MediaAlbumNotFound = "MEDIA_ALBUM_NOT_FOUND";
+    public const string MediaAssetNotFound = "MEDIA_ASSET_NOT_FOUND";
+    public const string MediaTagNotFound = "MEDIA_TAG_NOT_FOUND";
+    public const string MediaShareNotFound = "MEDIA_SHARE_NOT_FOUND";
+    public const string MediaAccessDenied = "MEDIA_ACCESS_DENIED";
+    public const string MediaInvalidFileType = "MEDIA_INVALID_FILE_TYPE";
+    public const string MediaFileTooLarge = "MEDIA_FILE_TOO_LARGE";
+    public const string MediaUnsafeFile = "MEDIA_UNSAFE_FILE";
+    public const string MediaStorageFailure = "MEDIA_STORAGE_FAILURE";
+    public const string MediaAlbumAlreadyExists = "MEDIA_ALBUM_ALREADY_EXISTS";
+    public const string MediaAssetAlreadyExists = "MEDIA_ASSET_ALREADY_EXISTS";
+    public const string MediaTagAlreadyExists = "MEDIA_TAG_ALREADY_EXISTS";
+    public const string MediaPermissionInvalid = "MEDIA_PERMISSION_INVALID";
+
     // MFA errors
     public const string MfaRequired = "MFA_REQUIRED";
     public const string InvalidMfaCode = "MFA_INVALID_CODE";
@@ -71,6 +88,51 @@ public static class CacheKeys
     public static string PasswordResetToken(string email) => $"{Prefix}password_reset:{email}";
     public static string Roles(Guid userId) => $"{Prefix}roles:{userId}";
     public static string SessionCount(Guid userId) => $"{Prefix}session_count:{userId}";
+    public static string MediaAlbum(Guid albumId) => $"{Prefix}media:album:{albumId}";
+    public static string MediaAsset(Guid mediaId) => $"{Prefix}media:asset:{mediaId}";
+    public static string MediaLibrary(Guid userId) => $"{Prefix}media:library:{userId}";
+    public static string MediaAccess(string resourceType, Guid resourceId, Guid userId, string permission)
+        => $"{Prefix}media:access:{resourceType}:{resourceId}:{userId}:{permission}";
+}
+
+/// <summary>
+/// Media-specific constants used by the MediaService.
+/// </summary>
+public static class MediaConstants
+{
+    public const long MaximumUploadSizeBytes = 500L * 1024L * 1024L;
+    public const int AccessCacheMinutes = 10;
+    public const int DefaultShareExpirationDays = 30;
+    public const string FavoriteTagName = "favorite";
+
+    public static readonly string[] AllowedImageExtensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"];
+    public static readonly string[] AllowedVideoExtensions = [".mp4", ".mov", ".m4v", ".webm"];
+    public static readonly string[] AllowedImageContentTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+    public static readonly string[] AllowedVideoContentTypes = ["video/mp4", "video/quicktime", "video/webm"];
+    public static readonly string[] ForbiddenExtensions = [
+        ".exe", ".dll", ".bat", ".cmd", ".ps1", ".sh", ".msi", ".jar", ".com", ".scr", ".vbs", ".js", ".svg"
+    ];
+
+    public static bool IsAllowedExtension(string extension)
+        => IsAllowedImageExtension(extension) || IsAllowedVideoExtension(extension);
+
+    public static bool IsAllowedImageExtension(string extension)
+        => Array.Exists(AllowedImageExtensions, value => string.Equals(value, extension, StringComparison.OrdinalIgnoreCase));
+
+    public static bool IsAllowedVideoExtension(string extension)
+        => Array.Exists(AllowedVideoExtensions, value => string.Equals(value, extension, StringComparison.OrdinalIgnoreCase));
+
+    public static bool IsAllowedContentType(string contentType)
+        => IsAllowedImageContentType(contentType) || IsAllowedVideoContentType(contentType);
+
+    public static bool IsAllowedImageContentType(string contentType)
+        => Array.Exists(AllowedImageContentTypes, value => string.Equals(value, contentType, StringComparison.OrdinalIgnoreCase));
+
+    public static bool IsAllowedVideoContentType(string contentType)
+        => Array.Exists(AllowedVideoContentTypes, value => string.Equals(value, contentType, StringComparison.OrdinalIgnoreCase));
+
+    public static bool IsForbiddenExtension(string extension)
+        => Array.Exists(ForbiddenExtensions, value => string.Equals(value, extension, StringComparison.OrdinalIgnoreCase));
 }
 
 /// <summary>

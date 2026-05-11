@@ -2,6 +2,7 @@ namespace UserManagementService.Infrastructure.Persistence;
 
 using Microsoft.EntityFrameworkCore;
 using Domain.Entities;
+using Shared.Constants;
 
 /// <summary>
 /// Entity Framework Core DbContext for UserManagementService.
@@ -31,36 +32,42 @@ public class UserManagementDbContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(UserManagementDbContext).Assembly);
 
         // Seed default roles
-        // SeedDefaultRoles(modelBuilder);
+        SeedDefaultRoles(modelBuilder);
     }
 
-    // private static void SeedDefaultRoles(ModelBuilder modelBuilder)
-    // {
-    //     var adminRoleId = Guid.Parse("00000000-0000-0000-0000-000000000001");
-    //     var userRoleId = Guid.Parse("00000000-0000-0000-0000-000000000002");
-    //     var moderatorRoleId = Guid.Parse("00000000-0000-0000-0000-000000000003");
-    //
-    //     modelBuilder.Entity<Role>().HasData(
-    //         new Role("Admin", "Administrator with full system access", true) 
-    //         { 
-    //             Id = adminRoleId, 
-    //             CreatedAt = DateTime.UtcNow,
-    //             UpdatedAt = DateTime.UtcNow
-    //         },
-    //         new Role("User", "Regular user with standard permissions", true) 
-    //         { 
-    //             Id = userRoleId,
-    //             CreatedAt = DateTime.UtcNow,
-    //             UpdatedAt = DateTime.UtcNow
-    //         },
-    //         new Role("Moderator", "Moderator with content management permissions", true) 
-    //         { 
-    //             Id = moderatorRoleId,
-    //             CreatedAt = DateTime.UtcNow,
-    //             UpdatedAt = DateTime.UtcNow
-    //         }
-    //     );
-    // }
+    private static void SeedDefaultRoles(ModelBuilder modelBuilder)
+    {
+        var seedTimestamp = DateTime.UnixEpoch;
+
+        modelBuilder.Entity<Role>().HasData(
+            new
+            {
+                Id = Guid.Parse("00000000-0000-0000-0000-000000000001"),
+                Name = RoleNames.Admin,
+                Description = "Administrator with full system access",
+                IsSystem = true,
+                CreatedAt = seedTimestamp,
+                UpdatedAt = seedTimestamp
+            },
+            new
+            {
+                Id = Guid.Parse("00000000-0000-0000-0000-000000000002"),
+                Name = RoleNames.User,
+                Description = "Regular user with standard permissions",
+                IsSystem = true,
+                CreatedAt = seedTimestamp,
+                UpdatedAt = seedTimestamp
+            },
+            new
+            {
+                Id = Guid.Parse("00000000-0000-0000-0000-000000000003"),
+                Name = RoleNames.Moderator,
+                Description = "Moderator with content management permissions",
+                IsSystem = true,
+                CreatedAt = seedTimestamp,
+                UpdatedAt = seedTimestamp
+            });
+    }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {

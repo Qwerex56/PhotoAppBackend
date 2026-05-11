@@ -2,32 +2,16 @@
 -- This script is run when PostgreSQL container starts
 
 -- AuthService Database
-CREATE DATABASE authservice
-    WITH
-    ENCODING = 'UTF8'
-    LC_COLLATE = 'en_US.UTF-8'
-    LC_CTYPE = 'en_US.UTF-8';
+CREATE DATABASE authservice;
 
 -- UserManagementService Database
-CREATE DATABASE usermanagementservice
-    WITH
-    ENCODING = 'UTF8'
-    LC_COLLATE = 'en_US.UTF-8'
-    LC_CTYPE = 'en_US.UTF-8';
+CREATE DATABASE usermanagementservice;
 
 -- MediaService Database
-CREATE DATABASE mediaservice
-    WITH
-    ENCODING = 'UTF8'
-    LC_COLLATE = 'en_US.UTF-8'
-    LC_CTYPE = 'en_US.UTF-8';
+CREATE DATABASE mediaservice;
 
 -- AuditService Database
-CREATE DATABASE auditservice
-    WITH
-    ENCODING = 'UTF8'
-    LC_COLLATE = 'en_US.UTF-8'
-    LC_CTYPE = 'en_US.UTF-8';
+CREATE DATABASE auditservice;
 
 -- Grant privileges to photoapp_user on all databases
 GRANT ALL PRIVILEGES ON DATABASE authservice TO photoapp_user;

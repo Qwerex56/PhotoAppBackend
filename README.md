@@ -30,11 +30,11 @@ A secure, scalable photo-sharing application built with ASP.NET Core microservic
    - User role management
    - Profile updates
 
-3. **MediaService** (Planned)
-   - Media uploads to Azure Blob Storage
-   - User Delegation SAS generation
-   - Metadata management
-   - Sharing & permissions
+3. **MediaService**
+  - Album and media management
+  - Uploads, renames, moves, and deletes
+  - Sharing with view/edit permissions
+  - Tagging and upload safety checks
 
 4. **AuditService** (Planned)
    - Append-only audit logs
@@ -335,7 +335,7 @@ Update `appsettings.Development.json` for each service:
 - [ ] Integration tests
 
 #### Additional Services (Later)
-- [ ] MediaService (uploads, SAS generation)
+- [x] MediaService (albums, uploads, sharing, safety checks)
 - [ ] AuditService (logging, compliance)
 - [ ] DeviceService (device management)
 - [ ] WebAuthnService (Passkey support)

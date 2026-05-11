@@ -9,11 +9,16 @@
 
     <ItemGroup>
         <ProjectReference Include="..\..\..\Shared\Shared.Constants\Shared.Constants.csproj" />
+                <ProjectReference Include="..\..\..\Shared\Shared.Contracts\Shared.Contracts.csproj" />
         <ProjectReference Include="..\..\..\Shared\Shared.Results\Shared.Results.csproj" />
+                <ProjectReference Include="..\UserManagementService.Domain\UserManagementService.Domain.csproj" />
     </ItemGroup>
 
     <ItemGroup>
       <PackageReference Include="FluentValidation" Version="12.1.1" />
+            <PackageReference Include="MassTransit" Version="8.1.2" />
+            <PackageReference Include="MediatR" Version="14.1.0" />
+            <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.25" />
     </ItemGroup>
 
 </Project>

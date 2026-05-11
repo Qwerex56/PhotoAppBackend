@@ -26,4 +26,12 @@
     <Project Path="src/Services/UserManagementService/UserManagementService.API/UserManagementService.API.csproj" />
   </Folder>
 
+  <!-- Media Service -->
+  <Folder Name="/src/Services/MediaService/">
+    <Project Path="src/Services/MediaService/MediaService.Domain/MediaService.Domain.csproj" />
+    <Project Path="src/Services/MediaService/MediaService.Application/MediaService.Application.csproj" />
+    <Project Path="src/Services/MediaService/MediaService.Infrastructure/MediaService.Infrastructure.csproj" />
+    <Project Path="src/Services/MediaService/MediaService.API/MediaService.API.csproj" />
+  </Folder>
+
 </Solution>
