@@ -48,6 +48,18 @@ public static class Program
 
         builder.Services.AddAuthorization();
 
+        var frontendDevOrigin = builder.Configuration["Frontend:DevOrigin"] ?? "http://localhost:5173";
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("DefaultCors", policy =>
+            {
+                policy.WithOrigins(frontendDevOrigin)
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .AllowCredentials();
+            });
+        });
+
         builder.Services.Configure<ForwardedHeadersOptions>(options =>
         {
             options.ForwardedHeaders = ForwardedHeaders.XForwardedFor
@@ -89,6 +101,7 @@ public static class Program
 
         app.UseForwardedHeaders();
         app.UseHttpsRedirection();
+        app.UseCors("DefaultCors");
         app.UseAuthentication();
         app.UseAuthorization();
 

@@ -21,6 +21,13 @@ http:
       tls: {}
       service: mediaservice
 
+    frontend:
+      rule: Host(`app.localhost`)
+      entryPoints:
+        - websecure
+      tls: {}
+      service: frontend
+
   services:
     authservice:
       loadBalancer:
@@ -36,3 +43,8 @@ http:
       loadBalancer:
         servers:
           - url: http://mediaservice-api:8080
+
+    frontend:
+      loadBalancer:
+        servers:
+          - url: http://frontend:80

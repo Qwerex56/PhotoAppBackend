@@ -91,6 +91,7 @@
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
+      Frontend__DevOrigin: https://app.localhost
       ConnectionStrings__AuthService: Host=postgres;Port=5432;Database=authservice;Username=photoapp_user;Password=photoapp_secure_password_123!
       AuthJwt__Issuer: PhotoAppBackend.AuthService
       AuthJwt__Audience: PhotoAppBackend
@@ -116,6 +117,7 @@
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
+      Frontend__DevOrigin: https://app.localhost
       ConnectionStrings__UserManagementService: Host=postgres;Port=5432;Database=usermanagementservice;Username=photoapp_user;Password=photoapp_secure_password_123!
       AuthJwt__Issuer: PhotoAppBackend.AuthService
       AuthJwt__Audience: PhotoAppBackend
@@ -140,6 +142,7 @@
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
+      Frontend__DevOrigin: https://app.localhost
       ConnectionStrings__MediaService: Host=postgres;Port=5432;Database=mediaservice;Username=photoapp_user;Password=photoapp_secure_password_123!
       AuthJwt__Issuer: PhotoAppBackend.AuthService
       AuthJwt__Audience: PhotoAppBackend
@@ -158,6 +161,18 @@
         condition: service_healthy
     networks:
       - photoapp_network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: photoapp_frontend
+    environment:
+      NODE_ENV: production
+    networks:
+      - photoapp_network
+    depends_on:
+      - traefik
 
 networks:
   photoapp_network:

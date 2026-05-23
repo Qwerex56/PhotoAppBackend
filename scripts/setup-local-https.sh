@@ -11,6 +11,7 @@ mkcert \
   -cert-file "$cert_dir/photoapp.localhost.pem" \
   -key-file "$cert_dir/photoapp.localhost-key.pem" \
   localhost \
+  app.localhost \
   auth.localhost \
   users.localhost \
   media.localhost \

@@ -57,6 +57,7 @@ public static class MediaEndpoints
 
         albumGroup.MapPost("/{albumId:guid}/media", UploadMediaAsync)
             .Accepts<UploadMediaRequest>("multipart/form-data")
+            .DisableAntiforgery()
             .WithName("UploadMedia")
             .WithOpenApi();
 
@@ -98,6 +99,8 @@ public static class MediaEndpoints
         IDistributedCache cache,
         HttpContext context)
     {
+        Console.WriteLine($"Claims: {user.Claims}");
+
         if (!TryGetUserId(user, out var userId))
             return Results.Unauthorized();
 
@@ -575,6 +578,7 @@ public static class MediaEndpoints
     private static bool TryGetUserId(ClaimsPrincipal principal, out Guid userId)
     {
         var subject = principal.FindFirstValue(AuthConstants.JwtClaimSubject);
+        Console.WriteLine($"Subject claim: {subject}");
         return Guid.TryParse(subject, out userId);
     }
 
@@ -683,7 +687,7 @@ public static class MediaEndpoints
     private sealed record RenameAlbumRequest(string Name, string? Description);
     private sealed record DeleteAlbumRequest(string Reason);
     private sealed record ShareRequest(Guid SharedWithUserId, string Permission, DateTime? ExpiresAt);
-    private sealed record UploadMediaRequest(IFormFile File, string DisplayName, string? Checksum);
+    private sealed record UploadMediaRequest(IFormFile File, string DisplayName, string? Checksum = null);
     private sealed record RenameMediaRequest(string DisplayName);
     private sealed record MoveMediaRequest(Guid TargetAlbumId);
     private sealed record DeleteMediaRequest(string Reason);
