@@ -83,6 +83,15 @@
       timeout: 5s
       retries: 5
 
+  clamav:
+    image: clamav/clamav:1.4
+    platform: linux/amd64
+    container_name: photoapp_clamav
+    ports:
+      - "3310:3310"
+    networks:
+      - photoapp_network
+
   authservice-api:
     build:
       context: .
@@ -96,7 +105,19 @@
       AuthJwt__Issuer: PhotoAppBackend.AuthService
       AuthJwt__Audience: PhotoAppBackend
       AuthJwt__SigningKey: photoapp-auth-service-dev-signing-key-32-plus-chars!!
-      AuthDemo__AutoVerifyEmail: "true"
+      AuthEmail__SmtpHost: mailhog
+      AuthEmail__SmtpPort: 1025
+      AuthEmail__EnableSsl: "false"
+      AuthEmail__FromAddress: no-reply@photoapp.local
+      AuthEmail__FromName: PhotoApp
+      AuthEmail__VerificationLinkBaseUrl: https://auth.localhost/api/auth/verify-email
+      AuthOAuth__Google__ClientId: ""
+      AuthOAuth__Google__ClientSecret: ""
+      AuthOAuth__Google__RedirectUri: https://app.localhost/oauth/google/callback
+      AuthOAuth__Google__AuthorizationEndpoint: https://accounts.google.com/o/oauth2/v2/auth
+      AuthOAuth__Google__TokenEndpoint: https://oauth2.googleapis.com/token
+      AuthOAuth__Google__UserInfoEndpoint: https://openidconnect.googleapis.com/v1/userinfo
+      AuthOAuth__Google__Scope: openid email profile
       RabbitMQ__Host: rabbitmq
       RabbitMQ__VirtualHost: /photoapp
       RabbitMQ__Username: photoapp_user
@@ -106,6 +127,15 @@
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    networks:
+      - photoapp_network
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: photoapp_mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
     networks:
       - photoapp_network
 
@@ -152,6 +182,11 @@
       RabbitMQ__Username: photoapp_user
       RabbitMQ__Password: photoapp_secure_password_123!
       Redis__ConnectionString: redis:6379,password=photoapp_secure_password_123!,abortConnect=false
+      MediaSecurity__Antimalware__Enabled: "true"
+      MediaSecurity__Antimalware__FailOpen: "false"
+      MediaSecurity__Antimalware__Host: clamav
+      MediaSecurity__Antimalware__Port: 3310
+      MediaSecurity__Antimalware__TimeoutSeconds: 30
     depends_on:
       postgres:
         condition: service_healthy
@@ -159,6 +194,8 @@
         condition: service_healthy
       redis:
         condition: service_healthy
+      clamav:
+        condition: service_started
     networks:
       - photoapp_network
 

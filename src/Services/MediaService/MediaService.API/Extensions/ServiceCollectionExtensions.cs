@@ -11,6 +11,7 @@ using MediaService.Application.Validators;
 using MediaService.Domain.Repositories;
 using MediaService.Infrastructure.Persistence;
 using MediaService.Infrastructure.Repositories;
+using MediaService.Infrastructure.Services;
 using Shared.Constants;
 
 public static class ServiceCollectionExtensions
@@ -41,12 +42,20 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IMediaTagRepository>(sp => sp.GetRequiredService<IMediaUnitOfWork>().MediaTags);
         services.AddScoped<IAlbumShareRepository>(sp => sp.GetRequiredService<IMediaUnitOfWork>().AlbumShares);
         services.AddScoped<IMediaShareRepository>(sp => sp.GetRequiredService<IMediaUnitOfWork>().MediaShares);
+        services.AddSingleton<IMediaStorageService, LocalMediaStorageService>();
 
         services.AddStackExchangeRedisCache(options =>
         {
             options.Configuration = configuration["Redis:ConnectionString"]
                 ?? "localhost:6379,password=photoapp_secure_password_123!,abortConnect=false";
             options.InstanceName = "photoapp:media:";
+        });
+
+        // Http client for calling UserManagementService from MediaService
+        services.AddHttpClient("user-management", client =>
+        {
+            var baseUrl = configuration["UserManagement:BaseUrl"] ?? "http://usermanagementservice-api:8080";
+            client.BaseAddress = new Uri(baseUrl);
         });
 
         services.AddMassTransit(x =>

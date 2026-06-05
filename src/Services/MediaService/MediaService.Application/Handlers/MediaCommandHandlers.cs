@@ -212,13 +212,15 @@ public sealed class UploadMediaCommandHandler : IRequestHandler<UploadMediaComma
     private readonly IMediaUnitOfWork _unitOfWork;
     private readonly IMediaAccessService _mediaAccessService;
     private readonly IMediaSecurityService _mediaSecurityService;
+    private readonly IMediaStorageService _mediaStorageService;
     private readonly IPublishEndpoint _publishEndpoint;
 
-    public UploadMediaCommandHandler(IMediaUnitOfWork unitOfWork, IMediaAccessService mediaAccessService, IMediaSecurityService mediaSecurityService, IPublishEndpoint publishEndpoint)
+    public UploadMediaCommandHandler(IMediaUnitOfWork unitOfWork, IMediaAccessService mediaAccessService, IMediaSecurityService mediaSecurityService, IMediaStorageService mediaStorageService, IPublishEndpoint publishEndpoint)
     {
         _unitOfWork = unitOfWork;
         _mediaAccessService = mediaAccessService;
         _mediaSecurityService = mediaSecurityService;
+        _mediaStorageService = mediaStorageService;
         _publishEndpoint = publishEndpoint;
     }
 
@@ -235,16 +237,32 @@ public sealed class UploadMediaCommandHandler : IRequestHandler<UploadMediaComma
         if (validation.IsFailure)
             return Result<UploadMediaCommandResponse>.Failure(validation.Error!);
 
+        var scanResult = await _mediaSecurityService.ScanForMalwareAsync(request.Content, cancellationToken);
+        if (scanResult.IsFailure)
+            return Result<UploadMediaCommandResponse>.Failure(scanResult.Error!);
+
+        var computedChecksum = _mediaSecurityService.ComputeChecksum(request.Content);
+        if (!string.IsNullOrWhiteSpace(request.Checksum)
+            && !string.Equals(request.Checksum, computedChecksum, StringComparison.OrdinalIgnoreCase))
+        {
+            return Result<UploadMediaCommandResponse>.Failure(
+                Error.Create(ErrorCodes.ValidationFailed, "Provided checksum does not match uploaded file content"));
+        }
+
         var normalizedDisplayName = _mediaSecurityService.NormalizeDisplayName(request.DisplayName);
 
         if (!await _unitOfWork.MediaAssets.ExistsInAlbumWithDisplayNameAsync(request.AlbumId, normalizedDisplayName, cancellationToken))
         {
             var mediaId = Guid.NewGuid();
             var storageKey = _mediaSecurityService.CreateStorageKey(request.OwnerId, request.AlbumId, mediaId, request.OriginalFileName);
-            var checksum = request.Checksum ?? _mediaSecurityService.ComputeChecksum(request.Content);
+            var checksum = computedChecksum;
             var kind = _mediaSecurityService.GetMediaKind(request.ContentType, request.OriginalFileName) == "video"
                 ? MediaKind.Video
                 : MediaKind.Photo;
+
+            var initialSafety = MediaSafetyStatus.PendingScan;
+            // If we've already scanned the content synchronously and it passed, mark approved
+            initialSafety = MediaSafetyStatus.Approved;
 
             var mediaAsset = new MediaAsset(
                 mediaId,
@@ -257,9 +275,10 @@ public sealed class UploadMediaCommandHandler : IRequestHandler<UploadMediaComma
                 request.FileSize,
                 checksum,
                 kind,
-                MediaSafetyStatus.PendingScan);
+                initialSafety);
 
             await _unitOfWork.MediaAssets.CreateAsync(mediaAsset, cancellationToken);
+            await _mediaStorageService.SaveAsync(mediaAsset.StorageKey, request.Content, cancellationToken);
 
             await _publishEndpoint.Publish(new MediaUploadedEvent
             {

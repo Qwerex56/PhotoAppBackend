@@ -4,6 +4,7 @@ import DashboardView from '../views/DashboardView.vue'
 import AllPhotosView from '../views/AllPhotosView.vue'
 import AlbumPhotosView from '../views/AlbumPhotosView.vue'
 import LoginView from '../views/LoginView.vue'
+import OAuthGoogleCallbackView from '../views/OAuthGoogleCallbackView.vue'
 import RegisterView from '../views/RegisterView.vue'
 
 const router = createRouter({
@@ -12,6 +13,7 @@ const router = createRouter({
     { path: '/', redirect: '/app' },
     { path: '/login', component: LoginView },
     { path: '/register', component: RegisterView },
+    { path: '/oauth/google/callback', component: OAuthGoogleCallbackView },
     { path: '/app', component: DashboardView, meta: { requiresAuth: true } },
     { path: '/photos', component: AllPhotosView, meta: { requiresAuth: true } },
     { path: '/albums/:albumId/photos', component: AlbumPhotosView, meta: { requiresAuth: true }, props: true },

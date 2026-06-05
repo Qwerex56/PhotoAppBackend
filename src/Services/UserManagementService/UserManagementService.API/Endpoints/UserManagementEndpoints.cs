@@ -19,6 +19,10 @@ public static class UserManagementEndpoints
             .WithName("GetUserProfile")
             .WithOpenApi();
 
+        group.MapGet("/by-email", GetByEmailAsync)
+            .WithName("GetUserByEmail")
+            .WithOpenApi();
+
         group.MapPut("/{userId:guid}/profile", UpdateProfileAsync)
             .WithName("UpdateUserProfile")
             .WithOpenApi();
@@ -46,6 +50,28 @@ public static class UserManagementEndpoints
         {
             return Results.NotFound();
         }
+
+        return Results.Ok(new UserProfileResponse(
+            profile.Id,
+            profile.Email,
+            profile.FullName,
+            profile.Bio,
+            profile.AvatarUrl,
+            profile.IsDeleted,
+            profile.CreatedAt,
+            profile.UpdatedAt,
+            profile.DeletedAt));
+    }
+
+    private static async Task<IResult> GetByEmailAsync(string email, IUserManagementUnitOfWork unitOfWork)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return Results.BadRequest();
+
+        var profile = await unitOfWork.UserProfiles.GetByEmailAsync(email);
+
+        if (profile is null)
+            return Results.NotFound();
 
         return Results.Ok(new UserProfileResponse(
             profile.Id,

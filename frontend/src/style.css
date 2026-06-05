@@ -1,15 +1,22 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
+  /* Photo App Color Palette */
+  --color-primary: #6B6359;      /* Brown/Taupe */
+  --color-primary-light: #C4BAA8; /* Beige */
+  --color-bg: #F5F1ED;           /* Off-white */
+  --color-accent: #1D2620;       /* Dark green */
+  
+  /* Semantic colors */
+  --text: #6B6359;
+  --text-h: #1D2620;
+  --bg: #F5F1ED;
+  --border: #C4BAA8;
+  --code-bg: #E8E3D8;
+  --accent: #6B6359;
+  --accent-bg: rgba(107, 99, 89, 0.08);
+  --accent-border: rgba(107, 99, 89, 0.3);
+  --social-bg: rgba(196, 186, 168, 0.2);
   --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+    rgba(29, 38, 32, 0.12) 0 10px 15px -3px, rgba(29, 38, 32, 0.06) 0 4px 6px -2px;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;

@@ -1,5 +1,6 @@
 using System.Data.Common;
 using AuthService.Domain.Entities;
+using Microsoft.Extensions.Configuration;
 using MassTransit;
 using Shared.Contracts.Events.Auth;
 
@@ -11,6 +12,9 @@ using Shared.Constants;
 using Domain.Repositories;
 using Services;
 using Commands.Auth;
+using System.Security.Claims;
+using System.Data;
+using System.Security.Principal;
 
 /// <summary>
 /// Handles user registration command.
@@ -25,7 +29,7 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, Result<Re
     private readonly IUserRepository _userRepository;
     private readonly IEmailVerificationTokenRepository _emailVerificationTokenRepository;
     private readonly IPublishEndpoint _publishEndpoint;
-    // TODO: Review by repo owner. Further instructions needed for COPILOT. After sending instructions made rework/implemntation HERE
+    private readonly IConfiguration _configuration;
 
     public RegisterCommandHandler(
         IAuthUnitOfWork unitOfWork,
@@ -34,7 +38,8 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, Result<Re
         IEmailService emailService,
         IUserRepository userRepository,
         IEmailVerificationTokenRepository emailVerificationTokenRepository,
-        IPublishEndpoint publishEndpoint)
+        IPublishEndpoint publishEndpoint,
+        IConfiguration configuration)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
@@ -43,21 +48,12 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, Result<Re
         _userRepository = userRepository;
         _emailVerificationTokenRepository = emailVerificationTokenRepository;
         _publishEndpoint = publishEndpoint;
+        _configuration = configuration;
     }
 
     public async Task<Result<RegisterCommandResponse>> Handle(RegisterCommand request,
         CancellationToken cancellationToken)
     {
-        // TODO: Review by repo owner. Further instructions needed for COPILOT. After sending instructions made rework/implemntation HERE
-        // 1. Check if user with this email already exists x
-        // 2. Hash the password using Argon2id x
-        // 3. Create new User entity x
-        // 4. Save to database x
-        // 5. Generate email verification token x
-        // 6. Send verification email 
-        // 7. Publish UserRegisteredEvent x
-        // 8. Return response x
-
         // Check if user exists
         var userExists = await _userRepository.ExistsByEmailAsync(request.Email, cancellationToken);
 
@@ -75,10 +71,8 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, Result<Re
         var emailToken = new EmailVerificationToken(user.Id,
             user.Email,
             _emailTokenService.HashToken(verificationToken),
-            DateTime.UtcNow.AddMinutes(AuthConstants.AccessTokenExpirationMinutes));
-
-// TODO: Remove this line after testing. It's only for demonstration purposes to show the generated token in the console.
-            Console.WriteLine($"Generated verification token for {user.Email}: {verificationToken} (hash: {emailToken.TokenHash})");
+            DateTime.UtcNow.AddMinutes(AuthConstants.EmailVerificationTokenExpirationMinutes),
+            request.IpAddress);
 
         await _userRepository.CreateAsync(user, cancellationToken);
         await _emailVerificationTokenRepository.CreateAsync(emailToken, cancellationToken);
@@ -93,8 +87,13 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, Result<Re
             return Result<RegisterCommandResponse>.Failure(Error.Conflict(e.Message));
         }
         
-        // Send events and verification email
-        await _emailService.SendEmailVerificationAsync(user.Email, verificationToken, cancellationToken);
+        var verificationLink = BuildVerificationLink(user.Id, user.Email, verificationToken);
+        var emailResult = await _emailService.SendEmailVerificationAsync(user.Email, verificationLink, cancellationToken);
+
+        if (emailResult.IsFailure)
+        {
+            return Result<RegisterCommandResponse>.Failure(emailResult.Error!);
+        }
 
         await _publishEndpoint.Publish(new UserRegisteredEvent
         {
@@ -112,6 +111,15 @@ public class RegisterCommandHandler : IRequestHandler<RegisterCommand, Result<Re
             Email = user.Email,
         });
     }
+
+    private string BuildVerificationLink(Guid userId, string email, string token)
+    {
+        var baseUrl = _configuration["AuthEmail:VerificationLinkBaseUrl"]
+            ?? "https://auth.localhost/api/auth/verify-email";
+        var separator = baseUrl.Contains('?') ? "&" : "?";
+
+        return $"{baseUrl}{separator}userId={Uri.EscapeDataString(userId.ToString())}&email={Uri.EscapeDataString(email)}&token={Uri.EscapeDataString(token)}";
+    }
 }
 
 /// <summary>
@@ -124,34 +132,24 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<LoginCom
     private readonly IPasswordHasher _passwordHasher;
     private readonly ITokenService _tokenService;
     private readonly IEmailTokenService _emailTokenService;
-    // TODO: Review by repo owner. Further instructions needed for COPILOT. After sending instructions made rework/implemntation HERE
+    private readonly IEmailService _emailService;
 
     public LoginCommandHandler(
         IAuthUnitOfWork unitOfWork,
         IPasswordHasher passwordHasher,
         ITokenService tokenService,
-        IEmailTokenService emailTokenService)
+        IEmailTokenService emailTokenService,
+        IEmailService emailService)
     {
         _unitOfWork = unitOfWork;
         _passwordHasher = passwordHasher;
         _tokenService = tokenService;
         _emailTokenService = emailTokenService;
+        _emailService = emailService;
     }
 
     public async Task<Result<LoginCommandResponse>> Handle(LoginCommand request, CancellationToken cancellationToken)
     {
-        // TODO: Review by repo owner. Further instructions needed for COPILOT. After sending instructions made rework/implemntation HERE
-        // 1. Find user by email
-        // 2. Verify password against hash
-        // 3. Check if account is locked (too many failed attempts)
-        // 4. Check if email is verified (if required)
-        // 5. Check if MFA is required
-        // 6. Generate access and refresh tokens
-        // 7. Save refresh token to database
-        // 8. Record successful login
-        // 9. Publish UserLoggedInEvent
-        // 10. Return tokens
-
         var user = await _unitOfWork.Users.GetByEmailAsync(request.Email, cancellationToken);
 
         if (user is null)
@@ -175,6 +173,131 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<LoginCom
             await _unitOfWork.Users.UpdateAsync(user, cancellationToken);
 
             return Result<LoginCommandResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidCredentials));
+        }
+
+        var mfaCode = System.Security.Cryptography.RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
+        var challengeToken = _tokenService.GenerateChallengeToken(new Dictionary<string, string>
+        {
+            ["purpose"] = "login_email_mfa",
+            ["userId"] = user.Id.ToString(),
+            ["email"] = user.Email,
+            ["codeHash"] = _emailTokenService.HashToken(mfaCode)
+        }, TimeSpan.FromMinutes(AuthConstants.MfaChallengeExpirationMinutes));
+
+        Console.WriteLine("DELETE AFTER TESTING");
+        Console.WriteLine($"Code: {mfaCode}, code hash: {_emailTokenService.HashToken(mfaCode)}, email: {user.Email}");
+        Console.WriteLine("DELETE AFTER TESTING");
+
+        var emailResult = await _emailService.SendTwoFactorCodeAsync(user.Email, mfaCode, cancellationToken);
+
+        if (emailResult.IsFailure)
+        {
+            return Result<LoginCommandResponse>.Failure(emailResult.Error!);
+        }
+
+        return Result<LoginCommandResponse>.Success(new LoginCommandResponse
+        {
+            UserId = user.Id,
+            Email = user.Email,
+            RequiresMfa = true,
+            MfaChallenge = challengeToken,
+            MfaMethod = "email"
+        });
+    }
+}
+
+public class CompleteEmailMfaCommandHandler : IRequestHandler<CompleteEmailMfaCommand, Result<LoginCommandResponse>>
+{
+    private readonly IAuthUnitOfWork _unitOfWork;
+    private readonly ITokenService _tokenService;
+    private readonly IEmailTokenService _emailTokenService;
+    private readonly IPublishEndpoint _publishEndpoint;
+
+    public CompleteEmailMfaCommandHandler(
+        IAuthUnitOfWork unitOfWork,
+        ITokenService tokenService,
+        IEmailTokenService emailTokenService,
+        IPublishEndpoint publishEndpoint)
+    {
+        _unitOfWork = unitOfWork;
+        _tokenService = tokenService;
+        _emailTokenService = emailTokenService;
+        _publishEndpoint = publishEndpoint;
+    }
+
+    public async Task<Result<LoginCommandResponse>> Handle(CompleteEmailMfaCommand request, CancellationToken cancellationToken)
+    {
+        var claims = _tokenService.ValidateAndExtractClaims(request.ChallengeToken);
+        if (claims is null)
+        {
+            return Result<LoginCommandResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        foreach (var key in claims.Keys)
+        {
+            Console.WriteLine($"{key}: {claims[key]}");
+        }
+
+        if (!claims.TryGetValue("purpose", out var purpose))
+        {
+            Console.WriteLine("DELETE AFTER TESTING");
+            Console.WriteLine($"purpose test");
+            Console.WriteLine("DELETE AFTER TESTING");
+            return Result<LoginCommandResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        if (!string.Equals(purpose, "login_email_mfa", StringComparison.OrdinalIgnoreCase))
+        {
+            Console.WriteLine("DELETE AFTER TESTING");
+            Console.WriteLine($"purpose compare test");
+            Console.WriteLine("DELETE AFTER TESTING");
+            return Result<LoginCommandResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        if (!claims.TryGetValue("userId", out var userIdValue))
+        {
+            Console.WriteLine("DELETE AFTER TESTING");
+            Console.WriteLine($"userIdValue test");
+            Console.WriteLine("DELETE AFTER TESTING");
+            return Result<LoginCommandResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        if (!claims.TryGetValue(ClaimTypes.Email, out var email))
+        {
+            Console.WriteLine("DELETE AFTER TESTING");
+            Console.WriteLine($"email test");
+            Console.WriteLine("DELETE AFTER TESTING");
+            return Result<LoginCommandResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        if (!claims.TryGetValue("codeHash", out var codeHash))
+        {
+            Console.WriteLine("DELETE AFTER TESTING");
+            Console.WriteLine($"codeHash test");
+            Console.WriteLine("DELETE AFTER TESTING");
+            return Result<LoginCommandResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        if (!Guid.TryParse(userIdValue, out var userId))
+        {
+            Console.WriteLine("DELETE AFTER TESTING");
+            Console.WriteLine($"userId parse test");
+            Console.WriteLine("DELETE AFTER TESTING");
+            return Result<LoginCommandResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        if (!_emailTokenService.VerifyToken(request.Code, codeHash))
+        {
+            Console.WriteLine("DELETE AFTER TESTING");
+            Console.WriteLine($"Second test");
+            Console.WriteLine("DELETE AFTER TESTING");
+            return Result<LoginCommandResponse>.Failure(Error.Unauthorized(ErrorCodes.InvalidToken));
+        }
+
+        var user = await _unitOfWork.Users.GetByIdAsync(userId, cancellationToken);
+        if (user is null || !string.Equals(user.Email, email, StringComparison.OrdinalIgnoreCase))
+        {
+            return Result<LoginCommandResponse>.Failure(Error.Unauthorized(ErrorCodes.UserNotFound));
         }
 
         user.RecordSuccessfulLogin();
@@ -204,6 +327,14 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<LoginCom
             return Result<LoginCommandResponse>.Failure(Error.InternalError(e.Message));
         }
 
+        await _publishEndpoint.Publish(new UserLoggedInEvent
+        {
+            UserId = user.Id,
+            IpAddress = request.IpAddress ?? string.Empty,
+            UserAgent = request.UserAgent ?? string.Empty,
+            LoginAt = DateTime.UtcNow
+        }, cancellationToken);
+
         return Result<LoginCommandResponse>.Success(new LoginCommandResponse
         {
             UserId = user.Id,
@@ -212,7 +343,8 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, Result<LoginCom
             RefreshToken = refreshTokenValue,
             AccessTokenExpiresIn = AuthConstants.AccessTokenExpirationMinutes * 60,
             RequiresMfa = false,
-            MfaChallenge = null
+            MfaChallenge = null,
+            MfaMethod = null
         });
     }
 }

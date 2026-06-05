@@ -8,6 +8,9 @@ public static class AuthConstants
     public const string AuthenticationScheme = "Bearer";
     public const int AccessTokenExpirationMinutes = 15;
     public const int RefreshTokenExpirationDays = 7;
+    public const int EmailVerificationTokenExpirationMinutes = 24 * 60;
+    public const int MfaChallengeExpirationMinutes = 10;
+    public const int OAuthStateExpirationMinutes = 10;
     public const string RefreshTokenCookieName = "photoapp_refresh_token";
     public const string RefreshTokenCookiePath = "/api/auth";
     public const string JwtClaimSubject = "sub";

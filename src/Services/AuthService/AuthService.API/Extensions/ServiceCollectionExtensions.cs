@@ -13,6 +13,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITokenService, JwtTokenService>();
         services.AddScoped<IEmailTokenService, EmailTokenService>();
         services.AddScoped<IEmailService, EmailService>();
+        services.AddHttpClient<IGoogleOAuthService, GoogleOAuthService>();
         services.AddScoped<IPasswordValidator, PasswordValidator>();
 
         return services;

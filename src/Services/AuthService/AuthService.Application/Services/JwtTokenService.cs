@@ -69,6 +69,21 @@ public sealed class JwtTokenService : ITokenService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
+    public string GenerateChallengeToken(Dictionary<string, string> claims, TimeSpan expiresIn)
+    {
+        var jwtClaims = claims.Select(pair => new Claim(pair.Key, pair.Value)).ToList();
+
+        var token = new JwtSecurityToken(
+            issuer: _issuer,
+            audience: _audience,
+            claims: jwtClaims,
+            notBefore: DateTime.UtcNow,
+            expires: DateTime.UtcNow.Add(expiresIn),
+            signingCredentials: _signingCredentials);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
     public string GenerateRefreshToken()
         => Convert.ToBase64String(RandomNumberGenerator.GetBytes(RefreshTokenSizeBytes));
 

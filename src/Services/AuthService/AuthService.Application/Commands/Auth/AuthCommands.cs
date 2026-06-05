@@ -47,6 +47,7 @@ public class LoginCommandResponse
     public int AccessTokenExpiresIn { get; init; } // Seconds
     public bool RequiresMfa { get; init; }
     public string? MfaChallenge { get; init; }
+    public string? MfaMethod { get; init; }
 }
 
 /// <summary>
@@ -108,4 +109,42 @@ public class LogoutCommand : Command<Result>
     public string? RefreshToken { get; init; }
     public Guid? RefreshTokenId { get; init; } // If null, revoke all tokens
     public string? Reason { get; init; }
+}
+
+/// <summary>
+/// Command to complete an email-based MFA challenge.
+/// </summary>
+public class CompleteEmailMfaCommand : Command<Result<LoginCommandResponse>>
+{
+    public string ChallengeToken { get; init; } = string.Empty;
+    public string Code { get; init; } = string.Empty;
+    public string? IpAddress { get; init; }
+    public string? UserAgent { get; init; }
+}
+
+/// <summary>
+/// Command to start the Google OAuth login flow.
+/// </summary>
+public class BeginGoogleOAuthCommand : Command<Result<OAuthStartResponse>>
+{
+    public string? ReturnUrl { get; init; }
+}
+
+/// <summary>
+/// Response containing the authorization URL for OAuth login.
+/// </summary>
+public class OAuthStartResponse
+{
+    public string AuthorizationUrl { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Command to complete the Google OAuth login flow.
+/// </summary>
+public class CompleteGoogleOAuthCommand : Command<Result<LoginCommandResponse>>
+{
+    public string Code { get; init; } = string.Empty;
+    public string State { get; init; } = string.Empty;
+    public string? IpAddress { get; init; }
+    public string? UserAgent { get; init; }
 }

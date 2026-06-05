@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MediaService.Domain\MediaService.Domain.csproj" />
+    <ProjectReference Include="..\MediaService.Application\MediaService.Application.csproj" />
   </ItemGroup>
 
 </Project>

@@ -31,6 +31,11 @@ public interface ITokenService
     string GenerateAccessToken(Guid userId, string email, List<string> roles);
 
     /// <summary>
+    /// Generates a signed short-lived token for auth challenges and OAuth state.
+    /// </summary>
+    string GenerateChallengeToken(Dictionary<string, string> claims, TimeSpan expiresIn);
+
+    /// <summary>
     /// Generates a refresh token value (secure random string).
     /// </summary>
     string GenerateRefreshToken();
@@ -81,6 +86,11 @@ public interface IEmailService
     Task<Result> SendEmailVerificationAsync(string email, string verificationLink, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Sends a one-time code for email-based multi-factor authentication.
+    /// </summary>
+    Task<Result> SendTwoFactorCodeAsync(string email, string code, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Sends a password reset link to the user.
     /// </summary>
     Task<Result> SendPasswordResetAsync(string email, string resetLink, CancellationToken cancellationToken = default);
@@ -90,6 +100,21 @@ public interface IEmailService
     /// </summary>
     Task<Result> SendLoginAlertAsync(string email, string ipAddress, string userAgent, CancellationToken cancellationToken = default);
 }
+
+/// <summary>
+/// Handles Google OAuth login flow.
+/// </summary>
+public interface IGoogleOAuthService
+{
+    Task<Result<string>> BuildAuthorizationUrlAsync(string? returnUrl, CancellationToken cancellationToken = default);
+    Task<Result<GoogleOAuthProfile>> ExchangeCodeAsync(string code, string state, CancellationToken cancellationToken = default);
+    Task<Result<AuthService.Application.Commands.Auth.LoginCommandResponse>> CompleteGoogleAuthorizationAsync(string code, string state, string? ipAddress, string? userAgent, CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Profile data returned by the OAuth provider.
+/// </summary>
+public sealed record GoogleOAuthProfile(string Email, string? FullName, string Subject);
 
 /// <summary>
 /// Validates password security requirements (OWASP guidelines).

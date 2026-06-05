@@ -1,22 +1,26 @@
 <script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterView } from 'vue-router'
+import { onMounted } from 'vue'
 import { useAuthStore } from './stores/auth'
 
 const authStore = useAuthStore()
+
+onMounted(() => {
+  authStore.initialize()
+})
 </script>
 
 <template>
-  <div>
-    <nav>
-      <RouterLink to="/app">Dashboard</RouterLink>
-      <RouterLink to="/photos">All photos</RouterLink>
-      <RouterLink to="/login">Login</RouterLink>
-      <RouterLink to="/register">Register</RouterLink>
-      <button v-if="authStore.isAuthenticated" type="button" @click="authStore.logout()">
-        Logout
-      </button>
-    </nav>
-
-    <RouterView />
-  </div>
+  <RouterView />
 </template>
+
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+}
+</style>

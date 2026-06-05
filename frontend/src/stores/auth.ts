@@ -18,7 +18,11 @@ type RegisterResponse = {
   message: string
 }
 
-const storageKey = 'photoapp.demo.auth'
+type OAuthStartResponse = {
+  authorizationUrl: string
+}
+
+const storageKey = 'photoapp.auth'
 
 export const useAuthStore = defineStore('auth', () => {
   const userId = ref<string | null>(null)
@@ -27,6 +31,7 @@ export const useAuthStore = defineStore('auth', () => {
   const refreshToken = ref<string | null>(null)
   const initialized = ref(false)
   const status = ref<string | null>(null)
+  const pendingMfaChallenge = ref<string | null>(null)
 
   const isAuthenticated = computed(() => Boolean(accessToken.value))
 
@@ -70,8 +75,8 @@ export const useAuthStore = defineStore('auth', () => {
     status.value = null
 
     const response = await authApi.post<RegisterResponse>('/api/auth/register', {
-      email: emailValue,
-      password,
+      Email: emailValue,
+      Password: password,
     })
 
     status.value = response.data.message
@@ -82,8 +87,56 @@ export const useAuthStore = defineStore('auth', () => {
     status.value = null
 
     const response = await authApi.post<LoginResponse>('/api/auth/login', {
-      email: emailValue,
-      password,
+      Email: emailValue,
+      Password: password,
+    })
+
+    if (response.data.requiresMfa) {
+      pendingMfaChallenge.value = response.data.mfaChallenge
+      status.value = 'Wysłano kod potwierdzający na e-mail.'
+      return response.data
+    }
+
+    userId.value = response.data.userId
+    email.value = response.data.email
+    accessToken.value = response.data.accessToken
+    refreshToken.value = response.data.refreshToken
+    setAuthToken(accessToken.value)
+    persistState()
+
+    return response.data
+  }
+
+  async function completeEmailMfa(code: string) {
+    if (!pendingMfaChallenge.value) {
+      throw new Error('Brak aktywnego potwierdzenia logowania')
+    }
+
+    const response = await authApi.post<LoginResponse>('/api/auth/mfa/email/verify', {
+      ChallengeToken: pendingMfaChallenge.value,
+      Code: code,
+    })
+
+    userId.value = response.data.userId
+    email.value = response.data.email
+    accessToken.value = response.data.accessToken
+    refreshToken.value = response.data.refreshToken
+    setAuthToken(accessToken.value)
+    pendingMfaChallenge.value = null
+    persistState()
+
+    return response.data
+  }
+
+  async function beginGoogleOAuth() {
+    const response = await authApi.get<OAuthStartResponse>('/api/auth/oauth/google/start')
+    window.location.assign(response.data.authorizationUrl)
+  }
+
+  async function completeGoogleOAuth(code: string, state: string) {
+    const response = await authApi.post<LoginResponse>('/api/auth/oauth/google/callback', {
+      Code: code,
+      State: state,
     })
 
     userId.value = response.data.userId
@@ -102,6 +155,7 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken.value = null
     refreshToken.value = null
     status.value = null
+    pendingMfaChallenge.value = null
     setAuthToken(null)
     localStorage.removeItem(storageKey)
   }
@@ -121,9 +175,13 @@ export const useAuthStore = defineStore('auth', () => {
     refreshToken,
     initialized,
     status,
+    pendingMfaChallenge,
     isAuthenticated,
     initialize,
     login,
+    completeEmailMfa,
+    beginGoogleOAuth,
+    completeGoogleOAuth,
     logout,
     register,
   }

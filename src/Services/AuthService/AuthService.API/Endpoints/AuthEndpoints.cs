@@ -2,6 +2,7 @@ namespace AuthService.API.Endpoints;
 
 using System.Security.Claims;
 using AuthService.Application.Commands.Auth;
+using AuthService.Application.Services;
 using MediatR;
 using Shared.Constants;
 using Shared.Results;
@@ -21,12 +22,28 @@ public static class AuthEndpoints
             .WithName("Login")
             .WithOpenApi();
 
+        group.MapPost("/mfa/email/verify", VerifyEmailMfaAsync)
+            .WithName("VerifyEmailMfa")
+            .WithOpenApi();
+
         group.MapPost("/refresh", RefreshAsync)
             .WithName("RefreshToken")
             .WithOpenApi();
 
         group.MapPost("/verify-email", VerifyEmailAsync)
             .WithName("VerifyEmail")
+            .WithOpenApi();
+
+        group.MapGet("/verify-email", VerifyEmailFromLinkAsync)
+            .WithName("VerifyEmailFromLink")
+            .WithOpenApi();
+
+        group.MapGet("/oauth/google/start", GoogleOAuthStartAsync)
+            .WithName("GoogleOAuthStart")
+            .WithOpenApi();
+
+        group.MapPost("/oauth/google/callback", GoogleOAuthCallbackAsync)
+            .WithName("GoogleOAuthCallback")
             .WithOpenApi();
 
         group.MapPost("/request-password-reset", RequestPasswordResetAsync)
@@ -70,7 +87,27 @@ public static class AuthEndpoints
 
         var result = await sender.Send(command);
 
-        if (result.IsSuccess && result.Value is not null)
+        if (result.IsSuccess && result.Value is not null && !string.IsNullOrWhiteSpace(result.Value.RefreshToken))
+        {
+            SetRefreshTokenCookie(context, result.Value.RefreshToken);
+        }
+
+        return result.ToHttpResult();
+    }
+
+    private static async Task<IResult> VerifyEmailMfaAsync(CompleteEmailMfaRequest request, ISender sender, HttpContext context)
+    {
+        var command = new CompleteEmailMfaCommand
+        {
+            ChallengeToken = request.ChallengeToken,
+            Code = request.Code,
+            IpAddress = GetClientIpAddress(context),
+            UserAgent = GetUserAgent(context)
+        };
+
+        var result = await sender.Send(command);
+
+        if (result.IsSuccess && result.Value is not null && !string.IsNullOrWhiteSpace(result.Value.RefreshToken))
         {
             SetRefreshTokenCookie(context, result.Value.RefreshToken);
         }
@@ -114,6 +151,47 @@ public static class AuthEndpoints
         };
 
         return (await sender.Send(command)).ToHttpResult();
+    }
+
+    private static async Task<IResult> VerifyEmailFromLinkAsync(Guid userId, string email, string token, ISender sender)
+    {
+        var command = new VerifyEmailCommand
+        {
+            UserId = userId,
+            Email = email,
+            Token = token
+        };
+
+        var result = await sender.Send(command);
+
+        return result.IsSuccess
+            ? Results.Text("Email verified successfully. You can close this tab.")
+            : result.ToHttpResult();
+    }
+
+    private static async Task<IResult> GoogleOAuthStartAsync(IGoogleOAuthService oauthService)
+    {
+        var result = await oauthService.BuildAuthorizationUrlAsync(null);
+        return result.IsSuccess
+            ? Results.Ok(new OAuthStartResponse { AuthorizationUrl = result.Value! })
+            : ToProblem(result.Error!);
+    }
+
+    private static async Task<IResult> GoogleOAuthCallbackAsync(GoogleOAuthCallbackRequest request, IGoogleOAuthService oauthService, HttpContext context)
+    {
+        var result = await oauthService.CompleteGoogleAuthorizationAsync(
+            request.Code,
+            request.State,
+            GetClientIpAddress(context),
+            GetUserAgent(context),
+            context.RequestAborted);
+
+        if (result.IsSuccess && result.Value is not null && !string.IsNullOrWhiteSpace(result.Value.RefreshToken))
+        {
+            SetRefreshTokenCookie(context, result.Value.RefreshToken);
+        }
+
+        return result.ToHttpResult();
     }
 
     private static async Task<IResult> RequestPasswordResetAsync(RequestPasswordResetRequest request, ISender sender, HttpContext context)
@@ -240,6 +318,8 @@ public static class AuthEndpoints
     private sealed record LoginRequest(string Email, string Password);
     private sealed record RefreshTokenRequest(string? RefreshToken);
     private sealed record VerifyEmailRequest(Guid UserId, string Email, string Token);
+    private sealed record CompleteEmailMfaRequest(string ChallengeToken, string Code);
+    private sealed record GoogleOAuthCallbackRequest(string Code, string State);
     private sealed record RequestPasswordResetRequest(string Email);
     private sealed record ResetPasswordRequest(Guid UserId, string Token, string NewPassword);
     private sealed record LogoutRequest(string? RefreshToken, Guid? RefreshTokenId, string? Reason);

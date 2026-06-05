@@ -1,11 +1,14 @@
 namespace MediaService.API.Endpoints;
 
 using System.Security.Claims;
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.Text.Json;
 using MediatR;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.AspNetCore.Mvc;
 using MediaService.Application.Commands.Media;
+using MediaService.Application.Services;
 using MediaService.Domain.Entities;
 using MediaService.Domain.Enums;
 using MediaService.Domain.Repositories;
@@ -63,6 +66,10 @@ public static class MediaEndpoints
 
         mediaGroup.MapGet("/{mediaId:guid}", GetMediaAsync)
             .WithName("GetMedia")
+            .WithOpenApi();
+
+        mediaGroup.MapGet("/{mediaId:guid}/content", GetMediaContentAsync)
+            .WithName("GetMediaContent")
             .WithOpenApi();
 
         mediaGroup.MapPut("/{mediaId:guid}", RenameMediaAsync)
@@ -266,6 +273,7 @@ public static class MediaEndpoints
         IMediaUnitOfWork unitOfWork,
         ISender sender,
         IDistributedCache cache,
+        IHttpClientFactory httpClientFactory,
         HttpContext context)
     {
         if (!TryGetUserId(user, out var userId))
@@ -275,12 +283,36 @@ public static class MediaEndpoints
         if (album is null)
             return Results.NotFound();
 
+        Guid targetUserId;
+
+        if (request.SharedWithUserId.HasValue && request.SharedWithUserId != Guid.Empty)
+        {
+            targetUserId = request.SharedWithUserId.Value;
+        }
+        else if (!string.IsNullOrWhiteSpace(request.SharedWithEmail))
+        {
+            var client = httpClientFactory.CreateClient("user-management");
+            var resp = await client.GetAsync($"/api/users/by-email?email={Uri.EscapeDataString(request.SharedWithEmail)}", context.RequestAborted);
+            if (!resp.IsSuccessStatusCode)
+                return Results.NotFound();
+
+            var profile = await resp.Content.ReadFromJsonAsync<UserProfileResponse>(cancellationToken: context.RequestAborted);
+            if (profile is null)
+                return Results.NotFound();
+
+            targetUserId = profile.UserId;
+        }
+        else
+        {
+            return Results.BadRequest();
+        }
+
         var command = new ShareAlbumCommand
         {
             AlbumId = albumId,
             OwnerId = album.OwnerId,
             ActorUserId = userId,
-            SharedWithUserId = request.SharedWithUserId,
+            SharedWithUserId = targetUserId,
             Permission = request.Permission,
             ExpiresAt = request.ExpiresAt
         };
@@ -318,6 +350,7 @@ public static class MediaEndpoints
         [FromForm] UploadMediaRequest request,
         ClaimsPrincipal user,
         IMediaUnitOfWork unitOfWork,
+        IMediaStorageService mediaStorageService,
         ISender sender,
         IDistributedCache cache,
         HttpContext context)
@@ -378,6 +411,30 @@ public static class MediaEndpoints
         var response = ToMediaDetails(mediaAsset);
         await SetCachedAsync(cache, cacheKey, response, context.RequestAborted);
         return Results.Ok(response);
+    }
+
+    private static async Task<IResult> GetMediaContentAsync(
+        Guid mediaId,
+        ClaimsPrincipal user,
+        IMediaUnitOfWork unitOfWork,
+        IMediaStorageService mediaStorageService,
+        HttpContext context)
+    {
+        if (!TryGetUserId(user, out var userId))
+            return Results.Unauthorized();
+
+        var mediaAsset = await unitOfWork.MediaAssets.GetByIdAsync(mediaId, context.RequestAborted);
+        if (mediaAsset is null)
+            return Results.NotFound();
+
+        if (!await CanViewMediaAsync(unitOfWork, mediaAsset, userId, context.RequestAborted))
+            return Results.Forbid();
+
+        var contentStream = await mediaStorageService.OpenReadAsync(mediaAsset.StorageKey, context.RequestAborted);
+        if (contentStream is null)
+            return Results.NotFound();
+
+        return Results.File(contentStream, mediaAsset.ContentType, mediaAsset.OriginalFileName, enableRangeProcessing: true);
     }
 
     private static async Task<IResult> RenameMediaAsync(
@@ -487,6 +544,7 @@ public static class MediaEndpoints
         IMediaUnitOfWork unitOfWork,
         ISender sender,
         IDistributedCache cache,
+        IHttpClientFactory httpClientFactory,
         HttpContext context)
     {
         if (!TryGetUserId(user, out var userId))
@@ -496,12 +554,36 @@ public static class MediaEndpoints
         if (mediaAsset is null)
             return Results.NotFound();
 
+        Guid targetUserId;
+
+        if (request.SharedWithUserId.HasValue && request.SharedWithUserId != Guid.Empty)
+        {
+            targetUserId = request.SharedWithUserId.Value;
+        }
+        else if (!string.IsNullOrWhiteSpace(request.SharedWithEmail))
+        {
+            var client = httpClientFactory.CreateClient("user-management");
+            var resp = await client.GetAsync($"/api/users/by-email?email={Uri.EscapeDataString(request.SharedWithEmail)}", context.RequestAborted);
+            if (!resp.IsSuccessStatusCode)
+                return Results.NotFound();
+
+            var profile = await resp.Content.ReadFromJsonAsync<UserProfileResponse>(cancellationToken: context.RequestAborted);
+            if (profile is null)
+                return Results.NotFound();
+
+            targetUserId = profile.UserId;
+        }
+        else
+        {
+            return Results.BadRequest();
+        }
+
         var command = new ShareMediaCommand
         {
             MediaId = mediaId,
             OwnerId = mediaAsset.OwnerId,
             ActorUserId = userId,
-            SharedWithUserId = request.SharedWithUserId,
+            SharedWithUserId = targetUserId,
             Permission = request.Permission,
             ExpiresAt = request.ExpiresAt
         };
@@ -686,7 +768,7 @@ public static class MediaEndpoints
     private sealed record CreateAlbumRequest(string Name, string? Description);
     private sealed record RenameAlbumRequest(string Name, string? Description);
     private sealed record DeleteAlbumRequest(string Reason);
-    private sealed record ShareRequest(Guid SharedWithUserId, string Permission, DateTime? ExpiresAt);
+    private sealed record ShareRequest(Guid? SharedWithUserId, string? SharedWithEmail, string Permission, DateTime? ExpiresAt);
     private sealed record UploadMediaRequest(IFormFile File, string DisplayName, string? Checksum = null);
     private sealed record RenameMediaRequest(string DisplayName);
     private sealed record MoveMediaRequest(Guid TargetAlbumId);
@@ -727,6 +809,17 @@ public static class MediaEndpoints
         DateTime UploadedAt,
         DateTime UpdatedAt,
         string[] Tags);
+
+    private sealed record UserProfileResponse(
+        Guid UserId,
+        string Email,
+        string? FullName,
+        string? Bio,
+        string? AvatarUrl,
+        bool IsDeleted,
+        DateTime CreatedAt,
+        DateTime UpdatedAt,
+        DateTime? DeletedAt);
 
     private sealed record MediaDetailsResponse(
         Guid MediaId,

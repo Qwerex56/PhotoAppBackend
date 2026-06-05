@@ -41,6 +41,11 @@ export type PhotoItem = MediaSummary & {
   albumVisibility: string
 }
 
+export type MediaDetails = MediaSummary & {
+  storageKey: string
+  contentType: string
+}
+
 export type AlbumWithMedia = {
   album: AlbumSummary
   photos: MediaSummary[]
@@ -57,8 +62,37 @@ export async function loadAlbum(albumId: string) {
 }
 
 export async function loadAlbumPhotos(albumId: string) {
-  const response = await mediaApi.get<MediaSummary[]>(`/api/albums/${albumId}/media`) 
+  const response = await mediaApi.get<MediaSummary[]>(`/api/albums/${albumId}/media`)
   return response.data
+}
+
+export async function loadMediaDetails(mediaId: string) {
+  const response = await mediaApi.get<MediaDetails>(`/api/media/${mediaId}`)
+  return response.data
+}
+
+export async function loadMediaContent(mediaId: string) {
+  const response = await mediaApi.get<Blob>(`/api/media/${mediaId}/content`, {
+    responseType: 'blob',
+  })
+  return response.data
+}
+
+export async function loadMediaThumbnail(mediaId: string) {
+  // For now reuse the same content endpoint. In future we can introduce
+  // a dedicated thumbnail endpoint to reduce bandwidth.
+  const response = await mediaApi.get<Blob>(`/api/media/${mediaId}/content`, {
+    responseType: 'blob',
+  })
+  return response.data
+}
+
+export async function shareAlbum(albumId: string, sharedWithEmail: string, permission: 'view' | 'edit', expiresAt?: string) {
+  await mediaApi.post(`/api/albums/${albumId}/share`, {
+    sharedWithEmail,
+    permission,
+    expiresAt: expiresAt ?? null,
+  })
 }
 
 export async function loadAllPhotos(): Promise<PhotoItem[]> {
